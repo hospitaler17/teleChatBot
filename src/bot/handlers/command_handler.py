@@ -12,8 +12,8 @@ from src.bot.filters.access_filter import AccessFilter
 logger = logging.getLogger(__name__)
 
 HELP_TEXT = (
-    "🤖 *teleGemmaBot*\n\n"
-    "Я бот-мост к модели Google Gemma.\n\n"
+    "🤖 *teleChatBot*\n\n"
+    "Я бот-мост к Mistral AI.\n\n"
     "*Как пользоваться:*\n"
     "• В личном диалоге — просто отправьте сообщение.\n"
     "• В групповом чате — упомяните меня через @{username} или ответьте на моё сообщение.\n\n"
@@ -35,7 +35,7 @@ class CommandHandler:
         if not self._access.check(update):
             return
         await update.message.reply_text(
-            "Привет! Я *teleGemmaBot* 🤖\nОтправь /help для справки.",
+            "Привет! Я *teleChatBot* 🤖\nОтправь /help для справки.",
             parse_mode="Markdown",
         )
 

@@ -11,8 +11,8 @@ from src.config.settings import AppSettings
 def test_defaults() -> None:
     """Settings should have sensible defaults when no files exist."""
     settings = AppSettings.load(config_dir=Path("/tmp/nonexistent"))
-    assert settings.gemma.model == "gemma-2-2b-it"
-    assert settings.gemma.max_output_tokens == 1024
+    assert settings.mistral.model == "mistral-small-latest"
+    assert settings.mistral.max_tokens == 1024
     assert settings.bot.language == "ru"
     assert settings.access.allowed_user_ids == []
     assert settings.access.allowed_chat_ids == []
@@ -23,8 +23,8 @@ def test_load_from_yaml(tmp_path: Path) -> None:
     config_yaml = tmp_path / "config.yaml"
     config_yaml.write_text(
         textwrap.dedent("""\
-        gemma:
-          model: gemma-2-9b-it
+        mistral:
+          model: mistral-large-latest
           temperature: 0.5
         bot:
           username: testbot
@@ -41,8 +41,8 @@ def test_load_from_yaml(tmp_path: Path) -> None:
     )
 
     settings = AppSettings.load(config_dir=tmp_path)
-    assert settings.gemma.model == "gemma-2-9b-it"
-    assert settings.gemma.temperature == 0.5
+    assert settings.mistral.model == "mistral-large-latest"
+    assert settings.mistral.temperature == 0.5
     assert settings.bot.username == "testbot"
     assert settings.admin.user_ids == [111]
     assert settings.access.allowed_user_ids == [100, 200]

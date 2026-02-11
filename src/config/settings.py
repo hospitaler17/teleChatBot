@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 
 
-class GemmaSettings(BaseModel):
-    """Settings for the Google Gemma model."""
+class MistralSettings(BaseModel):
+    """Settings for the Mistral model."""
 
-    model: str = "gemma-2-2b-it"
-    max_output_tokens: int = 1024
+    model: str = "mistral-small-latest"
+    max_tokens: int = 1024
     temperature: float = 0.7
 
 
@@ -54,9 +54,9 @@ class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", env_file=".env", extra="ignore")
 
     telegram_bot_token: str = ""
-    google_api_key: str = ""
+    mistral_api_key: str = ""
 
-    gemma: GemmaSettings = Field(default_factory=GemmaSettings)
+    mistral: MistralSettings = Field(default_factory=MistralSettings)
     bot: BotSettings = Field(default_factory=BotSettings)
     admin: AdminSettings = Field(default_factory=AdminSettings)
     access: AccessSettings = Field(default_factory=AccessSettings)
@@ -81,7 +81,7 @@ class AppSettings(BaseSettings):
             logger.info("Loaded access list from %s", access_path)
 
         return cls(
-            gemma=GemmaSettings(**yaml_data.get("gemma", {})),
+            mistral=MistralSettings(**yaml_data.get("mistral", {})),
             bot=BotSettings(**yaml_data.get("bot", {})),
             admin=AdminSettings(**yaml_data.get("admin", {})),
             access=AccessSettings(**access_data),

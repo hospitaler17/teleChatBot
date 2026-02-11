@@ -1,10 +1,10 @@
-# teleGemmaBot Configuration
+# teleChatBot Configuration
 # Copy this file to config.yaml and adjust to your needs.
 
-# Google Gemma model settings
-gemma:
-  model: "gemma-2-2b-it"
-  max_output_tokens: 1024
+# Mistral model settings
+mistral:
+  model: "mistral-small-latest"
+  max_tokens: 1024
   temperature: 0.7
 
 # Bot behavior
