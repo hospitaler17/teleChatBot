@@ -1,0 +1,22 @@
+# teleGemmaBot Configuration
+# Copy this file to config.yaml and adjust to your needs.
+
+# Google Gemma model settings
+gemma:
+  model: "gemma-2-2b-it"
+  max_output_tokens: 1024
+  temperature: 0.7
+
+# Bot behavior
+bot:
+  # Bot username (without @), used for mention detection in groups
+  username: "your_bot_username"
+  # Language for system messages
+  language: "ru"
+  # Maximum message length before truncation
+  max_message_length: 4096
+
+# Admin settings
+admin:
+  # Telegram user IDs with admin privileges (can manage bot via commands)
+  user_ids: []

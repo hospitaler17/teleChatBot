@@ -1,0 +1,8 @@
+# Allowed Users & Chats Configuration
+# Copy this file to allowed_users.yaml and adjust to your needs.
+
+# Telegram user IDs allowed to interact with the bot in direct messages
+allowed_user_ids: []
+
+# Telegram chat IDs where the bot is allowed to respond
+allowed_chat_ids: []
