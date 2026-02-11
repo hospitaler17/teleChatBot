@@ -22,11 +22,12 @@ class MistralClient:
     async def generate(self, prompt: str) -> str:
         """Send *prompt* to the Mistral model and return the text response."""
         try:
+            messages: list[dict[str, str]] = [
+                {"role": "user", "content": prompt}
+            ]
             response = await self._client.chat.complete_async(
                 model=self._settings.mistral.model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=self._settings.mistral.max_tokens,
                 temperature=self._settings.mistral.temperature,
             )

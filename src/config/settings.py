@@ -16,7 +16,13 @@ CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 
 
 class MistralSettings(BaseModel):
-    """Settings for the Mistral model."""
+    """Settings for the Mistral model.
+    
+    Attributes:
+        model: The Mistral model ID (e.g., "mistral-small-latest", "mistral-medium-latest")
+        max_tokens: Maximum number of tokens to generate in the response
+        temperature: Controls randomness (0.0 = deterministic, 1.0 = creative)
+    """
 
     model: str = "mistral-small-latest"
     max_tokens: int = 1024
