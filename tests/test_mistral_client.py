@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -36,13 +36,13 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
-    mock_client.chat.complete.return_value = mock_response
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
     result = await client.generate("Hi")
     assert result == "Hello from Mistral!"
-    mock_client.chat.complete.assert_called_once()
+    mock_client.chat.complete_async.assert_called_once()
 
 
 @patch("src.api.mistral_client.Mistral")
@@ -50,7 +50,7 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
 async def test_generate_error(mock_mistral: MagicMock, settings: AppSettings) -> None:
     """generate() should propagate exceptions."""
     mock_client = MagicMock()
-    mock_client.chat.complete.side_effect = RuntimeError("API down")
+    mock_client.chat.complete_async = AsyncMock(side_effect=RuntimeError("API down"))
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
