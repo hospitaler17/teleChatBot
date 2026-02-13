@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from mistralai import Mistral
+from mistralai.models import UserMessage
 
 from src.config.settings import AppSettings
 
@@ -22,8 +23,8 @@ class MistralClient:
     async def generate(self, prompt: str) -> str:
         """Send *prompt* to the Mistral model and return the text response."""
         try:
-            messages: list[dict[str, str]] = [
-                {"role": "user", "content": prompt}
+            messages = [
+                UserMessage(role="user", content=prompt)
             ]
             response = await self._client.chat.complete_async(
                 model=self._settings.mistral.model,
@@ -31,7 +32,26 @@ class MistralClient:
                 max_tokens=self._settings.mistral.max_tokens,
                 temperature=self._settings.mistral.temperature,
             )
-            return response.choices[0].message.content
+
+            # Validate response structure
+            choices = getattr(response, "choices", None)
+            if not choices:
+                logger.error("Mistral API returned no choices in the response")
+                raise ValueError("Mistral API returned no choices in the response")
+
+            first_choice = choices[0]
+            message = getattr(first_choice, "message", None)
+            content = getattr(message, "content", None) if message is not None else None
+
+            if content is None:
+                logger.error("Mistral API returned no message content in the first choice")
+                raise ValueError("Mistral API returned no message content in the first choice")
+
+            if not isinstance(content, str):
+                logger.error("Mistral API returned unexpected content type: %r", type(content))
+                raise TypeError("Mistral API returned non-string message content")
+
+            return content
         except Exception:
             logger.exception("Mistral API call failed")
             raise

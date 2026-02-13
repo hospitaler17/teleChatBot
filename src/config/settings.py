@@ -17,7 +17,7 @@ CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 
 class MistralSettings(BaseModel):
     """Settings for the Mistral model.
-    
+
     Attributes:
         model: The Mistral model ID (e.g., "mistral-small-latest", "mistral-medium-latest")
         max_tokens: Maximum number of tokens to generate in the response
