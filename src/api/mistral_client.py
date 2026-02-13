@@ -52,6 +52,10 @@ class MistralClient:
                 raise TypeError("Mistral API returned non-string message content")
 
             return content
+        except (ValueError, TypeError):
+            # Re-raise validation errors with their specific messages
+            raise
         except Exception:
+            # Catch and log any other unexpected errors
             logger.exception("Mistral API call failed")
             raise
