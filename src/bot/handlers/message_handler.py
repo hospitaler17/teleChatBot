@@ -1,4 +1,4 @@
-"""Handler for regular user messages forwarded to the Gemma model."""
+"""Handler for regular user messages forwarded to the Mistral model."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
-from src.api.gemma_client import GemmaClient
+from src.api.mistral_client import MistralClient
 from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
 
@@ -16,16 +16,16 @@ logger = logging.getLogger(__name__)
 
 
 class MessageHandler:
-    """Processes incoming text messages via the Gemma model."""
+    """Processes incoming text messages via the Mistral model."""
 
     def __init__(
         self,
         settings: AppSettings,
-        gemma_client: GemmaClient,
+        mistral_client: MistralClient,
         access_filter: AccessFilter,
     ) -> None:
         self._settings = settings
-        self._gemma = gemma_client
+        self._mistral = mistral_client
         self._access = access_filter
 
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -44,7 +44,7 @@ class MessageHandler:
         await context.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
         try:
-            response_text = await self._gemma.generate(prompt)
+            response_text = await self._mistral.generate(prompt)
         except Exception:
             logger.exception("Failed to generate response")
             await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")

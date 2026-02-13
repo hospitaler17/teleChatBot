@@ -1,4 +1,4 @@
-"""Entry point for teleGemmaBot."""
+"""Entry point for teleChatBot."""
 
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ def main() -> None:
     if not settings.telegram_bot_token:
         logger.error("TELEGRAM_BOT_TOKEN is not set")
         sys.exit(1)
-    if not settings.google_api_key:
-        logger.error("GOOGLE_API_KEY is not set")
+    if not settings.mistral_api_key:
+        logger.error("MISTRAL_API_KEY is not set")
         sys.exit(1)
 
-    logger.info("Starting teleGemmaBot…")
+    logger.info("Starting teleChatBot…")
     app = create_bot(settings)
     app.run_polling()
 

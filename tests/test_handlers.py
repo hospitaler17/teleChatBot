@@ -22,7 +22,7 @@ def _settings(
 ) -> AppSettings:
     return AppSettings(
         telegram_bot_token="fake",
-        google_api_key="fake",
+        mistral_api_key="fake",
         admin=AdminSettings(user_ids=admin_ids or []),
         access=AccessSettings(allowed_user_ids=allowed_users or []),
         bot=BotSettings(username="testbot"),
@@ -98,10 +98,10 @@ class TestMessageHandler:
         from src.bot.filters.access_filter import AccessFilter
 
         s = _settings(allowed_users=[1])
-        gemma = MagicMock()
-        gemma.generate = AsyncMock(return_value="response text")
+        mistral = MagicMock()
+        mistral.generate = AsyncMock(return_value="response text")
         af = AccessFilter(s)
-        handler = MessageHandler(s, gemma, af)
+        handler = MessageHandler(s, mistral, af)
 
         update = _update(user_id=1, text="ping")
         ctx = MagicMock()
@@ -114,9 +114,9 @@ class TestMessageHandler:
         from src.bot.filters.access_filter import AccessFilter
 
         s = _settings(allowed_users=[1])
-        gemma = MagicMock()
+        mistral = MagicMock()
         af = AccessFilter(s)
-        handler = MessageHandler(s, gemma, af)
+        handler = MessageHandler(s, mistral, af)
 
         update = _update(user_id=99)
         ctx = MagicMock()
