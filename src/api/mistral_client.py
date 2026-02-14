@@ -33,7 +33,7 @@ class MistralClient:
             messages.append(
                 UserMessage(role="user", content=prompt)
             )
-            
+
             response = await self._client.chat.complete_async(
                 model=self._settings.mistral.model,
                 messages=messages,

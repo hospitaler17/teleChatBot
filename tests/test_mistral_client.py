@@ -66,7 +66,7 @@ async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
             system_prompt="You are a helpful assistant."
         ),
     )
-    
+
     mock_client = MagicMock()
     mock_response = MagicMock()
     mock_message = MagicMock()
