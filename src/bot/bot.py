@@ -48,8 +48,11 @@ def create_bot(settings: AppSettings) -> Application:
     app.add_handler(TGCommandHandler("admin_remove_chat", admin.remove_chat))
     app.add_handler(TGCommandHandler("admin_list", admin.list_access))
 
-    # Text messages (lowest priority)
-    app.add_handler(TGMessageHandler(filters.TEXT & ~filters.COMMAND, msg.handle))
+    # Text messages and other message types (lowest priority)
+    # Handles: text, forwarded messages, replies, media with captions
+    # Use ~filters.COMMAND to exclude commands, but accept all other message types
+    message_filter = ~filters.COMMAND
+    app.add_handler(TGMessageHandler(message_filter, msg.handle))
 
     logger.info("Bot application created")
     return app

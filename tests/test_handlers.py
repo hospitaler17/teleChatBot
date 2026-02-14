@@ -107,7 +107,9 @@ class TestMessageHandler:
         ctx = MagicMock()
         ctx.bot.send_chat_action = AsyncMock()
         await handler.handle(update, ctx)
-        update.message.reply_text.assert_awaited_once_with("response text")
+        update.message.reply_text.assert_awaited_once_with(
+            "response text", parse_mode="Markdown"
+        )
 
     @pytest.mark.asyncio
     async def test_handle_disallowed(self) -> None:

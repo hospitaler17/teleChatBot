@@ -49,7 +49,11 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
     assert kwargs["model"] == settings.mistral.model
     # Ensure the user message content is correctly forwarded
     assert isinstance(kwargs["messages"], list)
-    assert len(kwargs["messages"]) == 1
+    # Should have SystemMessage (with date/time) + UserMessage
+    assert len(kwargs["messages"]) >= 2, "Should have system message and user message"
+    # Last message should be the user message
+    assert kwargs["messages"][-1].role == "user"
+    assert kwargs["messages"][-1].content == "Hi"
     # Ensure generation settings are passed through
     assert kwargs["max_tokens"] == settings.mistral.max_tokens
     assert kwargs["temperature"] == settings.mistral.temperature
@@ -62,8 +66,7 @@ async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
     settings = AppSettings(
         mistral_api_key="fake-key",
         mistral=MistralSettings(
-            model="mistral-small-latest",
-            system_prompt="You are a helpful assistant."
+            model="mistral-small-latest", system_prompt="You are a helpful assistant."
         ),
     )
 
@@ -88,7 +91,12 @@ async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
     assert len(messages) == 2
     # First message should be system
     assert messages[0].role == "system"
-    assert messages[0].content == "You are a helpful assistant."
+    # System message should contain the prompt and also date/time info
+    assert "You are a helpful assistant." in messages[0].content
+    assert "дата" in messages[0].content.lower() or "время" in messages[0].content.lower()
+    # Second message should be user
+    assert messages[1].role == "user"
+    assert messages[1].content == "Hi"
     # Second message should be user
     assert messages[1].role == "user"
     assert messages[1].content == "Hi"

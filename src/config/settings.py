@@ -23,12 +23,16 @@ class MistralSettings(BaseModel):
         max_tokens: Maximum number of tokens to generate in the response
         temperature: Controls randomness (0.0 = deterministic, 1.0 = creative)
         system_prompt: Optional system prompt to set the assistant's behavior
+        enable_web_search: Enable web search to augment responses with current information
+        conversation_history_size: Number of previous messages to include in context (default: 10)
     """
 
     model: str = "mistral-small-latest"
     max_tokens: int = 1024
     temperature: float = 0.7
     system_prompt: str = ""
+    enable_web_search: bool = False
+    conversation_history_size: int = 10
 
 
 class BotSettings(BaseModel):
@@ -63,6 +67,8 @@ class AppSettings(BaseSettings):
 
     telegram_bot_token: str = ""
     mistral_api_key: str = ""
+    google_api_key: str = ""
+    google_search_engine_id: str = ""
 
     mistral: MistralSettings = Field(default_factory=MistralSettings)
     bot: BotSettings = Field(default_factory=BotSettings)
@@ -88,8 +94,16 @@ class AppSettings(BaseSettings):
                 access_data = yaml.safe_load(fh) or {}
             logger.info("Loaded access list from %s", access_path)
 
+        # Log loaded mistral settings
+        mistral_settings = MistralSettings(**yaml_data.get("mistral", {}))
+        logger.info(
+            "Mistral settings - model: %s, web_search: %s",
+            mistral_settings.model,
+            mistral_settings.enable_web_search,
+        )
+
         return cls(
-            mistral=MistralSettings(**yaml_data.get("mistral", {})),
+            mistral=mistral_settings,
             bot=BotSettings(**yaml_data.get("bot", {})),
             admin=AdminSettings(**yaml_data.get("admin", {})),
             access=AccessSettings(**access_data),

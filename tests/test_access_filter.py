@@ -31,6 +31,7 @@ def _make_update(
     text: str = "hello",
     username: str | None = None,
     reply_from_username: str | None = None,
+    reply_is_bot: bool = False,
     entities: list | None = None,
 ) -> MagicMock:
     update = MagicMock()
@@ -42,6 +43,7 @@ def _make_update(
 
     if reply_from_username:
         update.message.reply_to_message.from_user.username = reply_from_username
+        update.message.reply_to_message.from_user.is_bot = reply_is_bot
     else:
         update.message.reply_to_message = None
 
@@ -97,6 +99,7 @@ def test_group_allowed_chat_with_reply() -> None:
         chat_type="group",
         chat_id=-100,
         reply_from_username="testbot",
+        reply_is_bot=True,
     )
     assert af.check(update) is True
 

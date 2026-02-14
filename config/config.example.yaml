@@ -10,6 +10,16 @@ mistral:
   # Leave empty or remove to use no system prompt
   system_prompt: ""
   # Example: "Ты - полезный ассистент, который отвечает кратко и по делу."
+  # Enable web search with multi-provider fallback:
+  # 1. Google Custom Search (if API key provided) - best quality
+  # 2. SearXNG public instance - reliable fallback
+  # 3. DuckDuckGo - last resort
+  enable_web_search: true
+  # Number of previous message pairs to keep in conversation history
+  # Each pair = 1 user message + 1 bot response
+  # Larger values = more context but higher API token usage
+  # Set to 0 to disable conversation history
+  conversation_history_size: 10
 
 # Bot behavior
 bot:
