@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from mistralai import Mistral
-from mistralai.models import UserMessage
+from mistralai.models import SystemMessage, UserMessage
 
 from src.config.settings import AppSettings
 
@@ -23,9 +23,17 @@ class MistralClient:
     async def generate(self, prompt: str) -> str:
         """Send *prompt* to the Mistral model and return the text response."""
         try:
-            messages = [
+            messages = []
+            # Add system message if configured
+            if self._settings.mistral.system_prompt:
+                messages.append(
+                    SystemMessage(role="system", content=self._settings.mistral.system_prompt)
+                )
+            # Add user message
+            messages.append(
                 UserMessage(role="user", content=prompt)
-            ]
+            )
+
             response = await self._client.chat.complete_async(
                 model=self._settings.mistral.model,
                 messages=messages,

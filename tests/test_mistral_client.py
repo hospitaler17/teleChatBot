@@ -57,6 +57,45 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
 
 @patch("src.api.mistral_client.Mistral")
 @pytest.mark.asyncio
+async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
+    """generate() should include system message when system_prompt is configured."""
+    settings = AppSettings(
+        mistral_api_key="fake-key",
+        mistral=MistralSettings(
+            model="mistral-small-latest",
+            system_prompt="You are a helpful assistant."
+        ),
+    )
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_message = MagicMock()
+    mock_message.content = "I'm here to help!"
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response.choices = [mock_choice]
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_mistral.return_value = mock_client
+
+    client = MistralClient(settings)
+    result = await client.generate("Hi")
+    assert result == "I'm here to help!"
+
+    # Verify messages include both system and user
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    assert len(messages) == 2
+    # First message should be system
+    assert messages[0].role == "system"
+    assert messages[0].content == "You are a helpful assistant."
+    # Second message should be user
+    assert messages[1].role == "user"
+    assert messages[1].content == "Hi"
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
 async def test_generate_error(mock_mistral: MagicMock, settings: AppSettings) -> None:
     """generate() should propagate exceptions."""
     mock_client = MagicMock()
