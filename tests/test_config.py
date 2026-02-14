@@ -13,6 +13,7 @@ def test_defaults() -> None:
     settings = AppSettings.load(config_dir=Path("/tmp/nonexistent"))
     assert settings.mistral.model == "mistral-small-latest"
     assert settings.mistral.max_tokens == 1024
+    assert settings.mistral.system_prompt == ""
     assert settings.bot.language == "ru"
     assert settings.access.allowed_user_ids == []
     assert settings.access.allowed_chat_ids == []
@@ -26,6 +27,7 @@ def test_load_from_yaml(tmp_path: Path) -> None:
         mistral:
           model: mistral-large-latest
           temperature: 0.5
+          system_prompt: "You are a helpful assistant."
         bot:
           username: testbot
         admin:
@@ -43,6 +45,7 @@ def test_load_from_yaml(tmp_path: Path) -> None:
     settings = AppSettings.load(config_dir=tmp_path)
     assert settings.mistral.model == "mistral-large-latest"
     assert settings.mistral.temperature == 0.5
+    assert settings.mistral.system_prompt == "You are a helpful assistant."
     assert settings.bot.username == "testbot"
     assert settings.admin.user_ids == [111]
     assert settings.access.allowed_user_ids == [100, 200]

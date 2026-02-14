@@ -22,11 +22,13 @@ class MistralSettings(BaseModel):
         model: The Mistral model ID (e.g., "mistral-small-latest", "mistral-medium-latest")
         max_tokens: Maximum number of tokens to generate in the response
         temperature: Controls randomness (0.0 = deterministic, 1.0 = creative)
+        system_prompt: Optional system prompt to set the assistant's behavior
     """
 
     model: str = "mistral-small-latest"
     max_tokens: int = 1024
     temperature: float = 0.7
+    system_prompt: str = ""
 
 
 class BotSettings(BaseModel):
