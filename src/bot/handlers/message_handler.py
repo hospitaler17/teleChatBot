@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 from telegram import Message, Update
 from telegram.constants import ChatAction
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from src.api.mistral_client import MistralClient
@@ -14,6 +16,11 @@ from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
 
 logger = logging.getLogger(__name__)
+
+# Localized text constants (Russian)
+MSG_ERROR = "⚠️ Произошла ошибка при обращении к модели. Попробуйте позже."
+MSG_STREAMING_INDICATOR = "⏳ Генерация..."
+MSG_MULTI_PART_PREFIX = "часть"  # Used as: "(часть 2/3)"
 
 
 class MessageHandler:
@@ -138,7 +145,7 @@ class MessageHandler:
 
         except Exception:
             logger.exception("Failed to generate response")
-            await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
+            await message.reply_text(MSG_ERROR)
             return
 
     async def _handle_streaming_response(
@@ -149,9 +156,7 @@ class MessageHandler:
         formatted_message: str,
     ) -> None:
         """Handle streaming response with progressive message updates."""
-        import time
 
-        from telegram.error import BadRequest
 
         accumulated_content = ""
         last_update_time = time.time()
@@ -182,7 +187,7 @@ class MessageHandler:
                     max_len = self._settings.bot.max_message_length
                     if len(normalized) > max_len and not is_final:
                         # Truncate and add streaming indicator
-                        normalized = normalized[:max_len - 20] + "\n\n⏳ Генерация..."
+                        normalized = normalized[:max_len - 20] + f"\n\n{MSG_STREAMING_INDICATOR}"
 
                     try:
                         if sent_message is None:
@@ -223,7 +228,7 @@ class MessageHandler:
                     for i, chunk in enumerate(chunks[1:], start=2):
                         normalized = _normalize_markdown_for_telegram(chunk)
                         await message.reply_text(
-                            f"(часть {i}/{len(chunks)})\n\n{normalized}",
+                            f"({MSG_MULTI_PART_PREFIX} {i}/{len(chunks)})\n\n{normalized}",
                             parse_mode="Markdown"
                         )
                 elif sent_message:
@@ -238,14 +243,13 @@ class MessageHandler:
         except Exception:
             logger.exception("Failed during streaming response")
             # Send error message
-            error_msg = "⚠️ Произошла ошибка при обращении к модели. Попробуйте позже."
             if sent_message is None:
-                await message.reply_text(error_msg)
+                await message.reply_text(MSG_ERROR)
             else:
                 try:
-                    await sent_message.edit_text(error_msg)
+                    await sent_message.edit_text(MSG_ERROR)
                 except Exception:
-                    await message.reply_text(error_msg)
+                    await message.reply_text(MSG_ERROR)
 
     # ------------------------------------------------------------------
 

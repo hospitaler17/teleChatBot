@@ -18,6 +18,12 @@ from src.config.settings import AppSettings
 
 logger = logging.getLogger(__name__)
 
+# Russian month names for date formatting
+RUSSIAN_MONTHS = [
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря"
+]
+
 
 @dataclass
 class GenerateResponse:
@@ -95,11 +101,7 @@ class MistralClient:
             if requires_current_date(prompt):
                 now = datetime.now()
                 # Format date in a clear, unambiguous way (in Russian for better understanding)
-                months_ru = [
-                    "января", "февраля", "марта", "апреля", "мая", "июня",
-                    "июля", "августа", "сентября", "октября", "ноября", "декабря"
-                ]
-                current_date_str = f"{now.day} {months_ru[now.month - 1]} {now.year} года"
+                current_date_str = f"{now.day} {RUSSIAN_MONTHS[now.month - 1]} {now.year} года"
                 current_time = now.strftime("%H:%M")
 
                 # Add explicit date context with clear instructions (English)
@@ -248,11 +250,7 @@ class MistralClient:
 
             if requires_current_date(prompt):
                 now = datetime.now()
-                months_ru = [
-                    "января", "февраля", "марта", "апреля", "мая", "июня",
-                    "июля", "августа", "сентября", "октября", "ноября", "декабря"
-                ]
-                current_date_str = f"{now.day} {months_ru[now.month - 1]} {now.year} года"
+                current_date_str = f"{now.day} {RUSSIAN_MONTHS[now.month - 1]} {now.year} года"
                 current_time = now.strftime("%H:%M")
 
                 date_info = (
