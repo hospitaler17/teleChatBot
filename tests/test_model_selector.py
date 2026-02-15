@@ -19,6 +19,13 @@ def test_init_default_model() -> None:
     assert selector._default_model == "mistral-large-latest"
 
 
+def test_select_model_uses_custom_default() -> None:
+    """Should use custom default model for simple queries."""
+    selector = ModelSelector(default_model="mistral-large-latest")
+    result = selector.select_model("What is the capital of France?")
+    assert result == "mistral-large-latest"
+
+
 def test_select_model_with_images(selector: ModelSelector) -> None:
     """Should select multimodal model when images are present."""
     result = selector.select_model("Что на этой картинке?", has_images=True)

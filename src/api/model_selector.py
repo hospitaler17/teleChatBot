@@ -111,13 +111,13 @@ class ModelSelector:
                 "Selected mistral-large-latest due to complexity or long context "
                 "(complex=%s, context=%d)",
                 is_complex,
-                total_context,
+                int(total_context),
             )
             return "mistral-large-latest"
 
-        # Default to small/fast model for simple queries
-        logger.info("Selected mistral-small-latest for simple query")
-        return "mistral-small-latest"
+        # Default to configured model for simple queries
+        logger.info("Selected %s for simple query", self._default_model)
+        return self._default_model
 
     def _is_code_request(self, prompt: str) -> bool:
         """
@@ -162,8 +162,8 @@ class ModelSelector:
             r"\bjavascript\b",
             r"\btypescript\b",
             r"\bjava\b(?!script)",
-            r"\bc\+\+\b",
-            r"\bc#\b",
+            r"(?<!\w)c\+\+(?!\w)",
+            r"(?<!\w)c#(?!\w)",
             r"\brust\b.*\b(lang|code|program)",
             r"\bgo\b.*\b(lang|code|program)",
             # Russian

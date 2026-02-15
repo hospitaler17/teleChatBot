@@ -3,9 +3,10 @@
 
 # Mistral model settings
 mistral:
-  # Default model - used as fallback when dynamic selection doesn't find a better match
+  # Default model - used as fallback for simple queries when dynamic selection 
+  # doesn't detect code, complexity, images, or long context.
   # The bot will automatically select the most appropriate model based on your query:
-  # - Simple questions → mistral-small-latest (fast)
+  # - Simple questions → uses this default model (fast)
   # - Code-related queries → codestral-latest
   # - Complex reasoning → mistral-large-latest
   # - Image analysis → pixtral-12b-latest
