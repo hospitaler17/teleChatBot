@@ -10,7 +10,7 @@ from mistralai import Mistral
 from mistralai.models import SystemMessage, UserMessage
 
 from src.api.conversation_memory import ConversationMemory
-from src.api.model_selector import ModelSelector
+from src.api.model_selector import ModelSelector, TOKEN_ESTIMATION_MULTIPLIER
 from src.api.web_search import WebSearchClient
 from src.config.settings import AppSettings
 
@@ -89,9 +89,9 @@ class MistralClient:
             if user_id is not None:
                 history_messages = self._memory.get_messages_for_api(user_id)
                 messages.extend(history_messages)
-                # Estimate conversation length in tokens (rough approximation)
+                # Estimate conversation length in tokens using standard multiplier
                 for msg in history_messages:
-                    conversation_length += len(str(msg.content).split()) * 1.3
+                    conversation_length += len(str(msg.content).split()) * TOKEN_ESTIMATION_MULTIPLIER
                 if history_messages:
                     logger.debug(
                         f"Added {len(history_messages)} messages from "

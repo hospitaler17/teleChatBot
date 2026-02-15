@@ -9,6 +9,10 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# Token estimation multiplier: Average ratio of tokens to words for typical text
+# Based on common tokenizers which generally produce 1.2-1.4 tokens per word
+TOKEN_ESTIMATION_MULTIPLIER = 1.3
+
 
 @dataclass
 class ModelCharacteristics:
@@ -94,7 +98,8 @@ class ModelSelector:
         # Analyze prompt characteristics
         is_code_related = self._is_code_request(prompt)
         is_complex = self._is_complex_request(prompt)
-        total_context = len(prompt.split()) * 1.3 + conversation_length  # Rough estimate
+        # Rough token estimation using standard multiplier
+        total_context = len(prompt.split()) * TOKEN_ESTIMATION_MULTIPLIER + conversation_length
 
         # Select based on characteristics
         if is_code_related:
