@@ -13,11 +13,17 @@ jobs:
     steps:
       - name: Deploy to Remote Server
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_SEARCH_ENGINE_ID: ${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          envs: TELEGRAM_BOT_TOKEN,MISTRAL_API_KEY,GOOGLE_API_KEY,GOOGLE_SEARCH_ENGINE_ID
           script: |
             # Set project directory
             PROJECT_DIR="/opt/teleChatBot"
@@ -38,21 +44,42 @@ jobs:
             # Check if .env file exists, if not - create it from secrets
             if [ ! -f "$PROJECT_DIR/.env" ]; then
               echo "Creating .env file from GitHub secrets..."
-              cat > $PROJECT_DIR/.env << EOF
-            TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
-            MISTRAL_API_KEY=${{ secrets.MISTRAL_API_KEY }}
-            GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
-            GOOGLE_SEARCH_ENGINE_ID=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}
-            EOF
+              touch $PROJECT_DIR/.env
               chmod 600 $PROJECT_DIR/.env
-            else
-              echo ".env file already exists. Updating keys..."
-              # Update existing .env with new values from secrets
-              sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}|" $PROJECT_DIR/.env
-              sed -i "s|^MISTRAL_API_KEY=.*|MISTRAL_API_KEY=${{ secrets.MISTRAL_API_KEY }}|" $PROJECT_DIR/.env
-              sed -i "s|^GOOGLE_API_KEY=.*|GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}|" $PROJECT_DIR/.env
-              sed -i "s|^GOOGLE_SEARCH_ENGINE_ID=.*|GOOGLE_SEARCH_ENGINE_ID=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}|" $PROJECT_DIR/.env
             fi
+            
+            # Securely update .env file using environment variables
+            # Use a temporary file with restricted permissions
+            TEMP_ENV=$(mktemp)
+            chmod 600 $TEMP_ENV
+            
+            # Read existing .env and update or add keys
+            if [ -f "$PROJECT_DIR/.env" ]; then
+              cp $PROJECT_DIR/.env $TEMP_ENV
+            fi
+            
+            # Function to update or add env variable
+            update_env_var() {
+              local key=$1
+              local value=$2
+              if grep -q "^${key}=" $TEMP_ENV; then
+                # Update existing key
+                sed -i "s|^${key}=.*|${key}=${value}|" $TEMP_ENV
+              else
+                # Add new key
+                echo "${key}=${value}" >> $TEMP_ENV
+              fi
+            }
+            
+            # Update all required environment variables
+            update_env_var "TELEGRAM_BOT_TOKEN" "$TELEGRAM_BOT_TOKEN"
+            update_env_var "MISTRAL_API_KEY" "$MISTRAL_API_KEY"
+            update_env_var "GOOGLE_API_KEY" "$GOOGLE_API_KEY"
+            update_env_var "GOOGLE_SEARCH_ENGINE_ID" "$GOOGLE_SEARCH_ENGINE_ID"
+            
+            # Move temporary file to final location
+            mv $TEMP_ENV $PROJECT_DIR/.env
+            chmod 600 $PROJECT_DIR/.env
             
             # Ensure config directory exists and has proper files
             if [ ! -d "$PROJECT_DIR/config" ]; then
