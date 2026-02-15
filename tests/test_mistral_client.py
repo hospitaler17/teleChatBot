@@ -46,7 +46,8 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
     # Verify that complete_async was called with the expected arguments
     mock_client.chat.complete_async.assert_called_once()
     _, kwargs = mock_client.chat.complete_async.call_args
-    assert kwargs["model"] == settings.mistral.model
+    # Model should be dynamically selected (mistral-small-latest for simple query)
+    assert kwargs["model"] == "mistral-small-latest"
     # Ensure the user message content is correctly forwarded
     assert isinstance(kwargs["messages"], list)
     # Should have SystemMessage (with date/time) + UserMessage
@@ -100,6 +101,54 @@ async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
     # Second message should be user
     assert messages[1].role == "user"
     assert messages[1].content == "Hi"
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_code_request(mock_mistral: MagicMock, settings: AppSettings) -> None:
+    """generate() should select code model for code-related queries."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_message = MagicMock()
+    mock_message.content = "def hello(): print('hi')"
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response.choices = [mock_choice]
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_mistral.return_value = mock_client
+
+    client = MistralClient(settings)
+    result = await client.generate("Write a Python function to sort a list")
+    assert result == "def hello(): print('hi')"
+
+    # Verify that codestral model was selected
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    assert kwargs["model"] == "codestral-latest"
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_complex_request(mock_mistral: MagicMock, settings: AppSettings) -> None:
+    """generate() should select large model for complex reasoning queries."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_message = MagicMock()
+    mock_message.content = "Detailed analysis..."
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response.choices = [mock_choice]
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_mistral.return_value = mock_client
+
+    client = MistralClient(settings)
+    result = await client.generate("Analyze step by step why this approach works")
+    assert result == "Detailed analysis..."
+
+    # Verify that large model was selected
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    assert kwargs["model"] == "mistral-large-latest"
 
 
 @patch("src.api.mistral_client.Mistral")

@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Remote Server
-        uses: appleboy/ssh-action@7a0d62c0c2fd4de0943e07258ae0c917f6513c96
+        uses: appleboy/ssh-action@v1.2.5
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
@@ -25,6 +25,20 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           envs: TELEGRAM_BOT_TOKEN,MISTRAL_API_KEY,GOOGLE_API_KEY,GOOGLE_SEARCH_ENGINE_ID
           script: |
+            # Exit immediately if a command exits with a non-zero status
+            set -e
+            
+            # Validate required secrets (GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID are optional)
+            if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+              echo "Error: TELEGRAM_BOT_TOKEN is required but not set"
+              exit 1
+            fi
+            
+            if [ -z "$MISTRAL_API_KEY" ]; then
+              echo "Error: MISTRAL_API_KEY is required but not set"
+              exit 1
+            fi
+            
             # Set project directory
             PROJECT_DIR="/opt/teleChatBot"
             
@@ -38,6 +52,7 @@ jobs:
               echo "Project directory found. Updating..."
               cd $PROJECT_DIR
               git fetch origin
+              git clean -fd
               git reset --hard origin/deploy
             fi
             
@@ -63,11 +78,11 @@ jobs:
               local key=$1
               local value=$2
               # Remove existing key if present using a secure temporary file
-              local TMP_ENV
-              TMP_ENV=$(mktemp)
-              chmod 600 "$TMP_ENV"
-              grep -v "^${key}=" "$TEMP_ENV" > "$TMP_ENV" || true
-              mv "$TMP_ENV" "$TEMP_ENV"
+              local TMP_FILE
+              TMP_FILE=$(mktemp)
+              chmod 600 "$TMP_FILE"
+              grep -v "^${key}=" "$TEMP_ENV" > "$TMP_FILE" || true
+              mv "$TMP_FILE" "$TEMP_ENV"
               # Add the key with new value
               echo "${key}=${value}" >> "$TEMP_ENV"
             }
@@ -108,7 +123,7 @@ jobs:
             echo "Rebuilding and restarting Docker container..."
             cd $PROJECT_DIR
             docker compose down
-            docker compose build --no-cache
+            docker compose build
             docker compose up -d
             
             # Show running containers

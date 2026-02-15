@@ -10,6 +10,7 @@ from mistralai import Mistral
 from mistralai.models import SystemMessage, UserMessage
 
 from src.api.conversation_memory import ConversationMemory
+from src.api.model_selector import TOKEN_ESTIMATION_MULTIPLIER, ModelSelector
 from src.api.web_search import WebSearchClient
 from src.config.settings import AppSettings
 
@@ -25,6 +26,9 @@ class MistralClient:
         self._web_search: Optional[WebSearchClient] = None
         self._memory = ConversationMemory(max_history=settings.mistral.conversation_history_size)
 
+        # Initialize model selector for dynamic model selection
+        self._model_selector = ModelSelector(default_model=settings.mistral.model)
+
         # Initialize web search if enabled with multiple providers
         if settings.mistral.enable_web_search:
             self._web_search = WebSearchClient(
@@ -35,7 +39,8 @@ class MistralClient:
                 "Web search enabled with multi-provider fallback (Google → SearXNG → DuckDuckGo)"
             )
 
-        logger.info("MistralClient initialised with model=%s", settings.mistral.model)
+        logger.info("MistralClient initialised with default model=%s", settings.mistral.model)
+        logger.info("Dynamic model selection enabled")
         logger.info("Web search setting: enable_web_search=%s", settings.mistral.enable_web_search)
         logger.info(
             "Conversation history: max_history=%d messages",
@@ -80,9 +85,14 @@ class MistralClient:
                 messages.append(SystemMessage(role="system", content=system_content))
 
             # Add conversation history if user_id provided
+            conversation_length = 0
             if user_id is not None:
                 history_messages = self._memory.get_messages_for_api(user_id)
                 messages.extend(history_messages)
+                # Estimate conversation length in tokens using standard multiplier
+                for msg in history_messages:
+                    msg_tokens = len(str(msg.content).split()) * TOKEN_ESTIMATION_MULTIPLIER
+                    conversation_length += msg_tokens
                 if history_messages:
                     logger.debug(
                         f"Added {len(history_messages)} messages from "
@@ -93,9 +103,17 @@ class MistralClient:
             logger.debug(f"Adding current user message to API: {prompt[:200]}...")
             messages.append(UserMessage(role="user", content=prompt))
 
+            # Select appropriate model based on request characteristics
+            selected_model = self._model_selector.select_model(
+                prompt=prompt,
+                conversation_length=int(conversation_length),
+                has_images=False,  # Future enhancement: detect images in input
+            )
+            logger.info(f"Selected model: {selected_model}")
+
             # Build request kwargs
             request_kwargs = {
-                "model": self._settings.mistral.model,
+                "model": selected_model,
                 "messages": messages,
                 "max_tokens": self._settings.mistral.max_tokens,
                 "temperature": self._settings.mistral.temperature,
