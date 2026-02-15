@@ -100,7 +100,7 @@ class MistralClient:
                 ]
                 current_date_str = f"{now.day} {months_ru[now.month - 1]} {now.year} года"
                 current_time = now.strftime("%H:%M")
-                
+
                 # Add explicit date context with clear instructions (English)
                 # Make it very prominent so the model cannot ignore it
                 date_info = (
@@ -120,7 +120,10 @@ class MistralClient:
 
                 # Also add to context history for multi-turn conversations
                 if user_id is not None:
-                    date_context = f"Current date: {current_date_str}. Current time: {current_time}."
+                    date_context = (
+                        f"Current date: {current_date_str}. "
+                        f"Current time: {current_time}."
+                    )
                     self._memory.add_system_context(user_id, date_context)
                     logger.debug(f"Added date context to conversation memory for user {user_id}")
 

@@ -255,7 +255,7 @@ def _normalize_markdown_for_telegram(text: str) -> str:
 
     Telegram supports: *bold*, _italic_, __underline__, ~strikethrough~, `code`
     But NOT: **bold** (double asterisks), ### headers, - lists (shows as-is)
-    
+
     Conversions:
     - #### Heading → *Heading* (bold)
     - ### Heading → *Heading* (bold)
@@ -263,17 +263,16 @@ def _normalize_markdown_for_telegram(text: str) -> str:
     - **text** → *text* (double asterisks to single)
     - - list item → • list item (for better formatting)
     """
-    import re
-    
+
     # Convert markdown headers (####, ###, ##) to bold
     text = re.sub(r'^#{2,4}\s+(.+?)$', r'*\1*', text, flags=re.MULTILINE)
-    
+
     # Convert double asterisks to single (markdown bold to Telegram bold)
     text = text.replace('**', '*')
-    
+
     # Convert markdown dashes to bullet points for better readability
     text = re.sub(r'^-\s+', '• ', text, flags=re.MULTILINE)
-    
+
     return text
 
 

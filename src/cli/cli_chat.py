@@ -38,7 +38,8 @@ class CLIChat:
         print(f"  Model: {self.settings.mistral.model}")
         print(f"  Temperature: {self.settings.mistral.temperature}")
         print(f"  Max tokens: {self.settings.mistral.max_tokens}")
-        print(f"  Web search: {'enabled' if self.settings.mistral.enable_web_search else 'disabled'}")
+        web_search_status = 'enabled' if self.settings.mistral.enable_web_search else 'disabled'
+        print(f"  Web search: {web_search_status}")
         print(f"  History size: {self.settings.mistral.conversation_history_size} messages")
         if self.settings.mistral.system_prompt:
             print(f"  System prompt: {self.settings.mistral.system_prompt[:50]}...")

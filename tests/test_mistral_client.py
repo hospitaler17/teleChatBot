@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.api.mistral_client import MistralClient, GenerateResponse
+from src.api.mistral_client import GenerateResponse, MistralClient
 from src.api.model_selector import requires_current_date
 from src.config.settings import AppSettings, MistralSettings
 
@@ -64,7 +64,6 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
 
     client = MistralClient(settings)
     result = await client.generate("Hi")
-    
     # Check result is GenerateResponse
     assert isinstance(result, GenerateResponse)
     assert result.content == "Hello from Mistral!"
@@ -181,7 +180,10 @@ async def test_generate_with_date_context(mock_mistral: MagicMock) -> None:
 
 @patch("src.api.mistral_client.Mistral")
 @pytest.mark.asyncio
-async def test_generate_without_date_context(mock_mistral: MagicMock, settings: AppSettings) -> None:
+async def test_generate_without_date_context(
+    mock_mistral: MagicMock,
+    settings: AppSettings,
+) -> None:
     """generate() should NOT add date for queries that don't need current date."""
     mock_client = MagicMock()
     mock_response = MagicMock()

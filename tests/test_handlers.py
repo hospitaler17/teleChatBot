@@ -95,8 +95,8 @@ class TestCommandHandler:
 class TestMessageHandler:
     @pytest.mark.asyncio
     async def test_handle_allowed(self) -> None:
-        from src.bot.filters.access_filter import AccessFilter
         from src.api.mistral_client import GenerateResponse
+        from src.bot.filters.access_filter import AccessFilter
 
         s = _settings(allowed_users=[1])
         mistral = MagicMock()
