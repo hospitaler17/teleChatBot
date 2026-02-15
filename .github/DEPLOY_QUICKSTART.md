@@ -33,4 +33,4 @@ The GitHub Action will automatically deploy to your server!
 - GitHub: Go to **Actions** tab → View "Deploy" workflow
 - Server: `ssh user@server "cd /opt/teleChatBot && docker compose ps"`
 
-For full documentation, see [DEPLOYMENT.md](DEPLOYMENT.md)
+For full documentation, see [DEPLOYMENT.md](../DEPLOYMENT.md)

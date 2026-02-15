@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Remote Server
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@7a0d62c0c2fd4de0943e07258ae0c917f6513c96
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
@@ -32,7 +32,7 @@ jobs:
             if [ ! -d "$PROJECT_DIR" ]; then
               echo "Project directory not found. Cloning repository..."
               cd /opt
-              git clone https://github.com/hospitaler17/teleChatBot.git
+              git clone --branch deploy https://github.com/hospitaler17/teleChatBot.git
               cd $PROJECT_DIR
             else
               echo "Project directory found. Updating..."
@@ -62,18 +62,28 @@ jobs:
             update_env_var() {
               local key=$1
               local value=$2
-              # Remove existing key if present
-              grep -v "^${key}=" $TEMP_ENV > $TEMP_ENV.tmp || true
-              mv $TEMP_ENV.tmp $TEMP_ENV
+              # Remove existing key if present using a secure temporary file
+              local TMP_ENV
+              TMP_ENV=$(mktemp)
+              chmod 600 "$TMP_ENV"
+              grep -v "^${key}=" "$TEMP_ENV" > "$TMP_ENV" || true
+              mv "$TMP_ENV" "$TEMP_ENV"
               # Add the key with new value
-              echo "${key}=${value}" >> $TEMP_ENV
+              echo "${key}=${value}" >> "$TEMP_ENV"
             }
             
             # Update all required environment variables
             update_env_var "TELEGRAM_BOT_TOKEN" "$TELEGRAM_BOT_TOKEN"
             update_env_var "MISTRAL_API_KEY" "$MISTRAL_API_KEY"
-            update_env_var "GOOGLE_API_KEY" "$GOOGLE_API_KEY"
-            update_env_var "GOOGLE_SEARCH_ENGINE_ID" "$GOOGLE_SEARCH_ENGINE_ID"
+            
+            # Update optional environment variables only if provided
+            if [ -n "$GOOGLE_API_KEY" ]; then
+              update_env_var "GOOGLE_API_KEY" "$GOOGLE_API_KEY"
+            fi
+            
+            if [ -n "$GOOGLE_SEARCH_ENGINE_ID" ]; then
+              update_env_var "GOOGLE_SEARCH_ENGINE_ID" "$GOOGLE_SEARCH_ENGINE_ID"
+            fi
             
             # Move temporary file to final location
             mv $TEMP_ENV $PROJECT_DIR/.env
