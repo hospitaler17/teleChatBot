@@ -86,8 +86,8 @@ jobs:
             fi
             
             # Move temporary file to final location
-            mv $TEMP_ENV $PROJECT_DIR/.env
-            chmod 600 $PROJECT_DIR/.env
+            mv "$TEMP_ENV" "$PROJECT_DIR/.env"
+            chmod 600 "$PROJECT_DIR/.env"
             
             # Ensure config directory exists and has proper files
             if [ ! -d "$PROJECT_DIR/config" ]; then
