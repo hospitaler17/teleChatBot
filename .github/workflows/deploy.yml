@@ -62,13 +62,11 @@ jobs:
             update_env_var() {
               local key=$1
               local value=$2
-              if grep -q "^${key}=" $TEMP_ENV; then
-                # Update existing key
-                sed -i "s|^${key}=.*|${key}=${value}|" $TEMP_ENV
-              else
-                # Add new key
-                echo "${key}=${value}" >> $TEMP_ENV
-              fi
+              # Remove existing key if present
+              grep -v "^${key}=" $TEMP_ENV > $TEMP_ENV.tmp || true
+              mv $TEMP_ENV.tmp $TEMP_ENV
+              # Add the key with new value
+              echo "${key}=${value}" >> $TEMP_ENV
             }
             
             # Update all required environment variables
