@@ -113,7 +113,9 @@ class MessageHandler:
 
             if use_streaming:
                 # Use streaming for progressive response
-                await self._handle_streaming_response(message, prompt, context_id, formatted_message)
+                await self._handle_streaming_response(
+                    message, prompt, context_id, formatted_message
+                )
             else:
                 # Use non-streaming (original behavior)
                 response = await self._mistral.generate(prompt, user_id=context_id)
@@ -124,7 +126,8 @@ class MessageHandler:
                     self._mistral._memory.add_message(context_id, "user", formatted_message)
                     self._mistral._memory.add_message(context_id, "assistant", response_text)
                     logger.debug(
-                        f"Stored user message and bot response in memory for context_id={context_id}"
+                        "Stored user message and bot response in memory "
+                        f"for context_id={context_id}"
                     )
 
                 # Send response (split by max length)
@@ -147,6 +150,7 @@ class MessageHandler:
     ) -> None:
         """Handle streaming response with progressive message updates."""
         import time
+
         from telegram.error import BadRequest
 
         accumulated_content = ""
@@ -173,13 +177,13 @@ class MessageHandler:
 
                 if should_update and accumulated_content:
                     normalized = _normalize_markdown_for_telegram(accumulated_content)
-                    
+
                     # For long messages, truncate with indicator during streaming
                     max_len = self._settings.bot.max_message_length
                     if len(normalized) > max_len and not is_final:
                         # Truncate and add streaming indicator
                         normalized = normalized[:max_len - 20] + "\n\n⏳ Генерация..."
-                    
+
                     try:
                         if sent_message is None:
                             # Send initial message
@@ -202,15 +206,18 @@ class MessageHandler:
                 # Store in history
                 if context_id is not None:
                     self._mistral._memory.add_message(context_id, "user", formatted_message)
-                    self._mistral._memory.add_message(context_id, "assistant", accumulated_content)
+                    self._mistral._memory.add_message(
+                        context_id, "assistant", accumulated_content
+                    )
                     logger.debug(
-                        f"Stored user message and bot response in memory for context_id={context_id}"
+                        "Stored user message and bot response in memory "
+                        f"for context_id={context_id}"
                     )
 
                 # Split and send full response if it exceeds max length
                 max_len = self._settings.bot.max_message_length
                 chunks = _split_text(accumulated_content, max_len)
-                
+
                 if len(chunks) > 1:
                     # First chunk was already sent/updated, send remaining chunks
                     for i, chunk in enumerate(chunks[1:], start=2):
@@ -231,13 +238,14 @@ class MessageHandler:
         except Exception:
             logger.exception("Failed during streaming response")
             # Send error message
+            error_msg = "⚠️ Произошла ошибка при обращении к модели. Попробуйте позже."
             if sent_message is None:
-                await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
+                await message.reply_text(error_msg)
             else:
                 try:
-                    await sent_message.edit_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
+                    await sent_message.edit_text(error_msg)
                 except Exception:
-                    await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
+                    await message.reply_text(error_msg)
 
     # ------------------------------------------------------------------
 

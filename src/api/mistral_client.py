@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -272,9 +271,13 @@ class MistralClient:
                 logger.info(f"Added current date to system prompt: {current_date_str}")
 
                 if user_id is not None:
-                    date_context = f"Current date: {current_date_str}. Current time: {current_time}."
+                    date_context = (
+                        f"Current date: {current_date_str}. Current time: {current_time}."
+                    )
                     self._memory.add_system_context(user_id, date_context)
-                    logger.debug(f"Added date context to conversation memory for user {user_id}")
+                    logger.debug(
+                        f"Added date context to conversation memory for user {user_id}"
+                    )
 
             # Perform web search if enabled
             if self._web_search and self._should_use_web_search(prompt):
@@ -297,7 +300,8 @@ class MistralClient:
                     conversation_length += msg_tokens
                 if history_messages:
                     logger.debug(
-                        f"Added {len(history_messages)} messages from conversation history for context {user_id}"
+                        f"Added {len(history_messages)} messages from "
+                        f"conversation history for context {user_id}"
                     )
 
             messages.append(UserMessage(role="user", content=prompt))
@@ -323,13 +327,13 @@ class MistralClient:
             output_tokens = 0
 
             stream = await self._client.chat.stream_async(**request_kwargs)
-            
+
             async for chunk in stream:
                 # Extract content delta from chunk
                 if hasattr(chunk, "data") and chunk.data:
                     data = chunk.data
                     choices = getattr(data, "choices", None)
-                    
+
                     if choices and len(choices) > 0:
                         delta = getattr(choices[0], "delta", None)
                         if delta:
@@ -337,7 +341,7 @@ class MistralClient:
                             if content_delta:
                                 accumulated_content += content_delta
                                 yield (content_delta, accumulated_content, False)
-                    
+
                     # Extract usage information if present (usually in the last chunk)
                     usage = getattr(data, "usage", None)
                     if usage:

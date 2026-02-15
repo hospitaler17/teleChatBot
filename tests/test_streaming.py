@@ -54,7 +54,7 @@ async def test_generate_stream_basic(mock_mistral: MagicMock, settings: AppSetti
     """Test basic streaming functionality."""
     # Mock streaming response
     mock_client = MagicMock()
-    
+
     # Create mock stream chunks
     async def mock_stream():
         # Chunk 1: partial content
@@ -67,7 +67,7 @@ async def test_generate_stream_basic(mock_mistral: MagicMock, settings: AppSetti
         chunk1.data.choices = [choice1]
         chunk1.data.usage = None
         yield chunk1
-        
+
         # Chunk 2: more content
         chunk2 = MagicMock()
         chunk2.data = MagicMock()
@@ -78,7 +78,7 @@ async def test_generate_stream_basic(mock_mistral: MagicMock, settings: AppSetti
         chunk2.data.choices = [choice2]
         chunk2.data.usage = None
         yield chunk2
-        
+
         # Chunk 3: final with usage
         chunk3 = MagicMock()
         chunk3.data = MagicMock()
@@ -97,11 +97,11 @@ async def test_generate_stream_basic(mock_mistral: MagicMock, settings: AppSetti
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
-    
+
     accumulated = []
     async for chunk_content, full_content, is_final in client.generate_stream("test"):
         accumulated.append((chunk_content, full_content, is_final))
-    
+
     # Verify we got the expected chunks
     assert len(accumulated) == 4  # 3 content chunks + 1 final
     assert accumulated[0] == ("Hello", "Hello", False)
@@ -118,7 +118,7 @@ async def test_generate_stream_with_empty_chunks(
 ) -> None:
     """Test streaming handles empty chunks gracefully."""
     mock_client = MagicMock()
-    
+
     async def mock_stream():
         # Chunk with no content
         chunk1 = MagicMock()
@@ -130,7 +130,7 @@ async def test_generate_stream_with_empty_chunks(
         chunk1.data.choices = [choice1]
         chunk1.data.usage = None
         yield chunk1
-        
+
         # Chunk with actual content
         chunk2 = MagicMock()
         chunk2.data = MagicMock()
@@ -146,12 +146,12 @@ async def test_generate_stream_with_empty_chunks(
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
-    
+
     accumulated = []
     async for chunk_content, full_content, is_final in client.generate_stream("test"):
         if chunk_content or is_final:  # Only collect non-empty or final chunks
             accumulated.append((chunk_content, full_content, is_final))
-    
+
     # Should have content chunk and final chunk
     assert len(accumulated) >= 1
     assert "Content" in accumulated[-1][1]
@@ -162,7 +162,7 @@ async def test_message_handler_uses_streaming_config() -> None:
     """Test MessageHandler respects streaming configuration."""
     from src.api.mistral_client import GenerateResponse
     from src.bot.filters.access_filter import AccessFilter
-    
+
     # Test with streaming enabled
     settings_streaming = AppSettings(
         mistral_api_key="test-key",
@@ -170,20 +170,20 @@ async def test_message_handler_uses_streaming_config() -> None:
     )
     settings_streaming.bot.enable_streaming = True
     settings_streaming.access.allowed_user_ids = [1]
-    
+
     mistral_streaming = MagicMock()
     async def mock_stream(prompt, user_id=None):
         yield ("Test", "Test", True)
     mistral_streaming.generate_stream = mock_stream
     mistral_streaming._memory = MagicMock()
     mistral_streaming._memory.add_message = MagicMock()
-    
+
     af = AccessFilter(settings_streaming)
     handler_streaming = MessageHandler(settings_streaming, mistral_streaming, af)
-    
+
     # Verify streaming is enabled
     assert handler_streaming._settings.bot.enable_streaming is True
-    
+
     # Test with streaming disabled
     settings_no_streaming = AppSettings(
         mistral_api_key="test-key",
@@ -191,7 +191,7 @@ async def test_message_handler_uses_streaming_config() -> None:
     )
     settings_no_streaming.bot.enable_streaming = False
     settings_no_streaming.access.allowed_user_ids = [1]
-    
+
     mistral_no_streaming = MagicMock()
     mistral_no_streaming.generate = AsyncMock(
         return_value=GenerateResponse(
@@ -203,9 +203,9 @@ async def test_message_handler_uses_streaming_config() -> None:
     )
     mistral_no_streaming._memory = MagicMock()
     mistral_no_streaming._memory.add_message = MagicMock()
-    
+
     handler_no_streaming = MessageHandler(settings_no_streaming, mistral_no_streaming, af)
-    
+
     # Verify streaming is disabled
     assert handler_no_streaming._settings.bot.enable_streaming is False
 
@@ -215,14 +215,14 @@ async def test_message_handler_streaming_disabled() -> None:
     """Test MessageHandler respects streaming disabled configuration."""
     from src.api.mistral_client import GenerateResponse
     from src.bot.filters.access_filter import AccessFilter
-    
+
     settings = AppSettings(
         mistral_api_key="test-key",
         telegram_bot_token="test-token",
     )
     settings.bot.enable_streaming = False
     settings.access.allowed_user_ids = [1]
-    
+
     mistral = MagicMock()
     mistral.generate = AsyncMock(
         return_value=GenerateResponse(
@@ -234,9 +234,9 @@ async def test_message_handler_streaming_disabled() -> None:
     )
     mistral._memory = MagicMock()
     mistral._memory.add_message = MagicMock()
-    
+
     af = AccessFilter(settings)
     handler = MessageHandler(settings, mistral, af)
-    
+
     # Verify streaming is disabled
     assert handler._settings.bot.enable_streaming is False
