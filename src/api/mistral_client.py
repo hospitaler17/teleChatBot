@@ -10,7 +10,7 @@ from mistralai import Mistral
 from mistralai.models import SystemMessage, UserMessage
 
 from src.api.conversation_memory import ConversationMemory
-from src.api.model_selector import ModelSelector, TOKEN_ESTIMATION_MULTIPLIER
+from src.api.model_selector import TOKEN_ESTIMATION_MULTIPLIER, ModelSelector
 from src.api.web_search import WebSearchClient
 from src.config.settings import AppSettings
 
@@ -25,7 +25,7 @@ class MistralClient:
         self._client = Mistral(api_key=settings.mistral_api_key)
         self._web_search: Optional[WebSearchClient] = None
         self._memory = ConversationMemory(max_history=settings.mistral.conversation_history_size)
-        
+
         # Initialize model selector for dynamic model selection
         self._model_selector = ModelSelector(default_model=settings.mistral.model)
 
@@ -91,7 +91,8 @@ class MistralClient:
                 messages.extend(history_messages)
                 # Estimate conversation length in tokens using standard multiplier
                 for msg in history_messages:
-                    conversation_length += len(str(msg.content).split()) * TOKEN_ESTIMATION_MULTIPLIER
+                    msg_tokens = len(str(msg.content).split()) * TOKEN_ESTIMATION_MULTIPLIER
+                    conversation_length += msg_tokens
                 if history_messages:
                     logger.debug(
                         f"Added {len(history_messages)} messages from "
