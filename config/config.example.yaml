@@ -3,6 +3,12 @@
 
 # Mistral model settings
 mistral:
+  # Default model - used as fallback when dynamic selection doesn't find a better match
+  # The bot will automatically select the most appropriate model based on your query:
+  # - Simple questions → mistral-small-latest (fast)
+  # - Code-related queries → codestral-latest
+  # - Complex reasoning → mistral-large-latest
+  # - Image analysis → pixtral-12b-latest
   model: "mistral-small-latest"
   max_tokens: 1024
   temperature: 0.7

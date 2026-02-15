@@ -185,8 +185,10 @@ pytest --cov=src
 src/
 ├── main.py                  # Точка входа
 ├── api/
-│   ├── mistral_client.py    # Клиент Mistral API
-│   └── web_search.py        # Веб-поиск через DuckDuckGo
+│   ├── mistral_client.py    # Клиент Mistral API с динамическим выбором модели
+│   ├── model_selector.py    # Алгоритм выбора модели на основе анализа запроса
+│   ├── conversation_memory.py # Управление историей разговоров
+│   └── web_search.py        # Веб-поиск с мульти-провайдерным fallback
 ├── bot/
 │   ├── bot.py               # Сборка приложения бота
 │   ├── filters/
