@@ -1,0 +1,81 @@
+name: Deploy
+
+on:
+  push:
+    branches: [deploy]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Remote Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            # Set project directory
+            PROJECT_DIR="/opt/teleChatBot"
+            
+            # Check if project directory exists, if not - clone it
+            if [ ! -d "$PROJECT_DIR" ]; then
+              echo "Project directory not found. Cloning repository..."
+              cd /opt
+              git clone https://github.com/hospitaler17/teleChatBot.git
+              cd $PROJECT_DIR
+            else
+              echo "Project directory found. Updating..."
+              cd $PROJECT_DIR
+              git fetch origin
+              git reset --hard origin/deploy
+            fi
+            
+            # Check if .env file exists, if not - create it from secrets
+            if [ ! -f "$PROJECT_DIR/.env" ]; then
+              echo "Creating .env file from GitHub secrets..."
+              cat > $PROJECT_DIR/.env << EOF
+            TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+            MISTRAL_API_KEY=${{ secrets.MISTRAL_API_KEY }}
+            GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
+            GOOGLE_SEARCH_ENGINE_ID=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}
+            EOF
+              chmod 600 $PROJECT_DIR/.env
+            else
+              echo ".env file already exists. Updating keys..."
+              # Update existing .env with new values from secrets
+              sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}|" $PROJECT_DIR/.env
+              sed -i "s|^MISTRAL_API_KEY=.*|MISTRAL_API_KEY=${{ secrets.MISTRAL_API_KEY }}|" $PROJECT_DIR/.env
+              sed -i "s|^GOOGLE_API_KEY=.*|GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}|" $PROJECT_DIR/.env
+              sed -i "s|^GOOGLE_SEARCH_ENGINE_ID=.*|GOOGLE_SEARCH_ENGINE_ID=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}|" $PROJECT_DIR/.env
+            fi
+            
+            # Ensure config directory exists and has proper files
+            if [ ! -d "$PROJECT_DIR/config" ]; then
+              mkdir -p $PROJECT_DIR/config
+            fi
+            
+            if [ ! -f "$PROJECT_DIR/config/config.yaml" ] && [ -f "$PROJECT_DIR/config/config.example.yaml" ]; then
+              echo "Creating config.yaml from example..."
+              cp $PROJECT_DIR/config/config.example.yaml $PROJECT_DIR/config/config.yaml
+            fi
+            
+            if [ ! -f "$PROJECT_DIR/config/allowed_users.yaml" ] && [ -f "$PROJECT_DIR/config/allowed_users.example.yaml" ]; then
+              echo "Creating allowed_users.yaml from example..."
+              cp $PROJECT_DIR/config/allowed_users.example.yaml $PROJECT_DIR/config/allowed_users.yaml
+            fi
+            
+            # Stop, rebuild and restart the Docker container
+            echo "Rebuilding and restarting Docker container..."
+            cd $PROJECT_DIR
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
+            
+            # Show running containers
+            echo "Deployment completed. Running containers:"
+            docker compose ps
