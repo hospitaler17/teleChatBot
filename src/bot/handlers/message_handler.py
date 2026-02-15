@@ -108,27 +108,136 @@ class MessageHandler:
         await context.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
         try:
-            response = await self._mistral.generate(prompt, user_id=context_id)
-            response_text = response.content
+            # Determine if we should use streaming based on configuration
+            use_streaming = self._settings.bot.enable_streaming
+
+            if use_streaming:
+                # Use streaming for progressive response
+                await self._handle_streaming_response(message, prompt, context_id, formatted_message)
+            else:
+                # Use non-streaming (original behavior)
+                response = await self._mistral.generate(prompt, user_id=context_id)
+                response_text = response.content
+
+                # Store both user message and bot response in history
+                if context_id is not None:
+                    self._mistral._memory.add_message(context_id, "user", formatted_message)
+                    self._mistral._memory.add_message(context_id, "assistant", response_text)
+                    logger.debug(
+                        f"Stored user message and bot response in memory for context_id={context_id}"
+                    )
+
+                # Send response (split by max length)
+                max_len = self._settings.bot.max_message_length
+                for chunk in _split_text(response_text, max_len):
+                    normalized = _normalize_markdown_for_telegram(chunk)
+                    await message.reply_text(normalized, parse_mode="Markdown")
+
         except Exception:
             logger.exception("Failed to generate response")
             await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
             return
 
-        # Store both user message and bot response in history AFTER generating response
-        if context_id is not None:
-            self._mistral._memory.add_message(context_id, "user", formatted_message)
-            self._mistral._memory.add_message(context_id, "assistant", response_text)
-            logger.debug(
-                f"Stored user message and bot response in memory for context_id={context_id}"
-            )
+    async def _handle_streaming_response(
+        self,
+        message: Message,
+        prompt: str,
+        context_id: int | None,
+        formatted_message: str,
+    ) -> None:
+        """Handle streaming response with progressive message updates."""
+        import time
+        from telegram.error import BadRequest
 
-        # Send response (split by max length)
-        max_len = self._settings.bot.max_message_length
-        for chunk in _split_text(response_text, max_len):
-            # Normalize markdown for Telegram compatibility
-            normalized = _normalize_markdown_for_telegram(chunk)
-            await message.reply_text(normalized, parse_mode="Markdown")
+        accumulated_content = ""
+        last_update_time = time.time()
+        sent_message = None
+        update_interval = self._settings.bot.streaming_update_interval
+        threshold = self._settings.bot.streaming_threshold
+
+        try:
+            async for chunk_content, full_content, is_final in self._mistral.generate_stream(
+                prompt, user_id=context_id
+            ):
+                accumulated_content = full_content
+                current_time = time.time()
+
+                # Only update if we've accumulated enough content and enough time has passed
+                should_update = (
+                    is_final
+                    or (
+                        len(accumulated_content) >= threshold
+                        and (current_time - last_update_time) >= update_interval
+                    )
+                )
+
+                if should_update and accumulated_content:
+                    normalized = _normalize_markdown_for_telegram(accumulated_content)
+                    
+                    # For long messages, truncate with indicator during streaming
+                    max_len = self._settings.bot.max_message_length
+                    if len(normalized) > max_len and not is_final:
+                        # Truncate and add streaming indicator
+                        normalized = normalized[:max_len - 20] + "\n\n⏳ Генерация..."
+                    
+                    try:
+                        if sent_message is None:
+                            # Send initial message
+                            sent_message = await message.reply_text(
+                                normalized, parse_mode="Markdown"
+                            )
+                        else:
+                            # Update existing message
+                            await sent_message.edit_text(
+                                normalized, parse_mode="Markdown"
+                            )
+                        last_update_time = current_time
+                    except BadRequest as e:
+                        # Handle cases where message content hasn't changed
+                        if "message is not modified" not in str(e).lower():
+                            logger.warning(f"Failed to update message: {e}")
+
+            # After streaming completes, handle long messages by splitting
+            if accumulated_content:
+                # Store in history
+                if context_id is not None:
+                    self._mistral._memory.add_message(context_id, "user", formatted_message)
+                    self._mistral._memory.add_message(context_id, "assistant", accumulated_content)
+                    logger.debug(
+                        f"Stored user message and bot response in memory for context_id={context_id}"
+                    )
+
+                # Split and send full response if it exceeds max length
+                max_len = self._settings.bot.max_message_length
+                chunks = _split_text(accumulated_content, max_len)
+                
+                if len(chunks) > 1:
+                    # First chunk was already sent/updated, send remaining chunks
+                    for i, chunk in enumerate(chunks[1:], start=2):
+                        normalized = _normalize_markdown_for_telegram(chunk)
+                        await message.reply_text(
+                            f"(часть {i}/{len(chunks)})\n\n{normalized}",
+                            parse_mode="Markdown"
+                        )
+                elif sent_message:
+                    # Update the message one final time without the streaming indicator
+                    normalized = _normalize_markdown_for_telegram(chunks[0])
+                    try:
+                        await sent_message.edit_text(normalized, parse_mode="Markdown")
+                    except BadRequest as e:
+                        if "message is not modified" not in str(e).lower():
+                            logger.warning(f"Failed to update final message: {e}")
+
+        except Exception:
+            logger.exception("Failed during streaming response")
+            # Send error message
+            if sent_message is None:
+                await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
+            else:
+                try:
+                    await sent_message.edit_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
+                except Exception:
+                    await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
 
     # ------------------------------------------------------------------
 

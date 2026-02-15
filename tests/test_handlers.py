@@ -99,6 +99,9 @@ class TestMessageHandler:
         from src.bot.filters.access_filter import AccessFilter
 
         s = _settings(allowed_users=[1])
+        # Disable streaming for this test to verify non-streaming path still works
+        s.bot.enable_streaming = False
+        
         mistral = MagicMock()
         mistral.generate = AsyncMock(
             return_value=GenerateResponse(

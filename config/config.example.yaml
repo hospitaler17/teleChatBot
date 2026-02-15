@@ -40,6 +40,15 @@ bot:
   # Useful for debugging system prompts and testing model responses
   # Set to true for local testing, false for production Telegram bot
   cli_mode: false
+  # Enable streaming: Send responses progressively as they're generated
+  # Provides better user experience for long responses
+  enable_streaming: true
+  # Minimum response length (in characters) to trigger streaming
+  # Short responses are sent immediately without streaming
+  streaming_threshold: 100
+  # Interval in seconds between message updates during streaming
+  # Lower values = more frequent updates but more API calls to Telegram
+  streaming_update_interval: 1.0
 
 # Admin settings
 admin:
