@@ -1,0 +1,116 @@
+name: Deploy
+
+on:
+  push:
+    branches: [deploy]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Remote Server
+        uses: appleboy/ssh-action@7a0d62c0c2fd4de0943e07258ae0c917f6513c96
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_SEARCH_ENGINE_ID: ${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: TELEGRAM_BOT_TOKEN,MISTRAL_API_KEY,GOOGLE_API_KEY,GOOGLE_SEARCH_ENGINE_ID
+          script: |
+            # Set project directory
+            PROJECT_DIR="/opt/teleChatBot"
+            
+            # Check if project directory exists, if not - clone it
+            if [ ! -d "$PROJECT_DIR" ]; then
+              echo "Project directory not found. Cloning repository..."
+              cd /opt
+              git clone --branch deploy https://github.com/hospitaler17/teleChatBot.git
+              cd $PROJECT_DIR
+            else
+              echo "Project directory found. Updating..."
+              cd $PROJECT_DIR
+              git fetch origin
+              git reset --hard origin/deploy
+            fi
+            
+            # Check if .env file exists, if not - create it from secrets
+            if [ ! -f "$PROJECT_DIR/.env" ]; then
+              echo "Creating .env file from GitHub secrets..."
+              touch $PROJECT_DIR/.env
+              chmod 600 $PROJECT_DIR/.env
+            fi
+            
+            # Securely update .env file using environment variables
+            # Use a temporary file with restricted permissions
+            TEMP_ENV=$(mktemp)
+            chmod 600 $TEMP_ENV
+            
+            # Read existing .env and update or add keys
+            if [ -f "$PROJECT_DIR/.env" ]; then
+              cp $PROJECT_DIR/.env $TEMP_ENV
+            fi
+            
+            # Function to update or add env variable
+            update_env_var() {
+              local key=$1
+              local value=$2
+              # Remove existing key if present using a secure temporary file
+              local TMP_ENV
+              TMP_ENV=$(mktemp)
+              chmod 600 "$TMP_ENV"
+              grep -v "^${key}=" "$TEMP_ENV" > "$TMP_ENV" || true
+              mv "$TMP_ENV" "$TEMP_ENV"
+              # Add the key with new value
+              echo "${key}=${value}" >> "$TEMP_ENV"
+            }
+            
+            # Update all required environment variables
+            update_env_var "TELEGRAM_BOT_TOKEN" "$TELEGRAM_BOT_TOKEN"
+            update_env_var "MISTRAL_API_KEY" "$MISTRAL_API_KEY"
+            
+            # Update optional environment variables only if provided
+            if [ -n "$GOOGLE_API_KEY" ]; then
+              update_env_var "GOOGLE_API_KEY" "$GOOGLE_API_KEY"
+            fi
+            
+            if [ -n "$GOOGLE_SEARCH_ENGINE_ID" ]; then
+              update_env_var "GOOGLE_SEARCH_ENGINE_ID" "$GOOGLE_SEARCH_ENGINE_ID"
+            fi
+            
+            # Move temporary file to final location
+            mv "$TEMP_ENV" "$PROJECT_DIR/.env"
+            chmod 600 "$PROJECT_DIR/.env"
+            
+            # Ensure config directory exists and has proper files
+            if [ ! -d "$PROJECT_DIR/config" ]; then
+              mkdir -p $PROJECT_DIR/config
+            fi
+            
+            if [ ! -f "$PROJECT_DIR/config/config.yaml" ] && [ -f "$PROJECT_DIR/config/config.example.yaml" ]; then
+              echo "Creating config.yaml from example..."
+              cp $PROJECT_DIR/config/config.example.yaml $PROJECT_DIR/config/config.yaml
+            fi
+            
+            if [ ! -f "$PROJECT_DIR/config/allowed_users.yaml" ] && [ -f "$PROJECT_DIR/config/allowed_users.example.yaml" ]; then
+              echo "Creating allowed_users.yaml from example..."
+              cp $PROJECT_DIR/config/allowed_users.example.yaml $PROJECT_DIR/config/allowed_users.yaml
+            fi
+            
+            # Stop, rebuild and restart the Docker container
+            echo "Rebuilding and restarting Docker container..."
+            cd $PROJECT_DIR
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
+            
+            # Show running containers
+            echo "Deployment completed. Running containers:"
+            docker compose ps
