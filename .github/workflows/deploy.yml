@@ -28,7 +28,7 @@ jobs:
             # Exit immediately if a command exits with a non-zero status
             set -e
             
-            # Validate required secrets
+            # Validate required secrets (GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID are optional)
             if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
               echo "Error: TELEGRAM_BOT_TOKEN is required but not set"
               exit 1
