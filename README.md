@@ -3,6 +3,7 @@
 Telegram-бот — мост к Mistral API. Отвечает на запросы пользователей из заданного списка чатов и личных диалогов. В групповых чатах реагирует только на прямые обращения (`@bot_username` или ответ на сообщение бота).
 
 [![CI](https://github.com/hospitaler17/teleChatBot/actions/workflows/ci.yml/badge.svg)](https://github.com/hospitaler17/teleChatBot/actions/workflows/ci.yml)
+[![Deploy](https://github.com/hospitaler17/teleChatBot/actions/workflows/deploy.yml/badge.svg)](https://github.com/hospitaler17/teleChatBot/actions/workflows/deploy.yml)
 
 ## Возможности
 
@@ -54,6 +55,10 @@ python -m src.main
 # Сборка и запуск
 docker compose up -d
 ```
+
+### Автоматическое развертывание
+
+Проект настроен для автоматического развертывания на удаленном сервере через GitHub Actions. См. [DEPLOYMENT.md](DEPLOYMENT.md) для подробной инструкции.
 
 ## Конфигурация
 
