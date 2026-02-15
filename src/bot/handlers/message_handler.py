@@ -6,10 +6,11 @@ import logging
 import re
 
 from telegram import Message, Update
-from telegram.constants import ChatAction
+from telegram.constants import ChatAction, ReactionEmoji
 from telegram.ext import ContextTypes
 
 from src.api.mistral_client import MistralClient
+from src.api.reaction_analyzer import ReactionAnalyzer
 from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
 
@@ -28,6 +29,7 @@ class MessageHandler:
         self._settings = settings
         self._mistral = mistral_client
         self._access = access_filter
+        self._reaction_analyzer = ReactionAnalyzer(settings)
 
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Process messages and maintain full conversation history.
@@ -94,6 +96,10 @@ class MessageHandler:
 
         # Format message for history: "[sender]: message"
         formatted_message = f"[{sender_name}]: {prompt}"
+
+        # Try to add a reaction to the message (if enabled and conditions met)
+        # This runs regardless of whether we respond to the message
+        await self._try_add_reaction(message, prompt)
 
         # Only respond if message is directly addressed to the bot
         if not is_direct_request:
@@ -248,6 +254,40 @@ class MessageHandler:
         if bot_username:
             text = text.replace(f"@{bot_username}", "").strip()
         return text
+
+    async def _try_add_reaction(self, message: Message, text: str) -> None:
+        """Try to add a reaction to the message based on sentiment analysis.
+
+        Args:
+            message: The Telegram message object
+            text: The extracted text from the message
+        """
+        try:
+            # Check if we should analyze this message
+            if not self._reaction_analyzer.should_analyze(text):
+                return
+
+            logger.info("Analyzing message for reaction")
+
+            # Analyze the mood
+            mood = await self._reaction_analyzer.analyze_mood(text)
+            if not mood:
+                logger.debug("No mood detected")
+                return
+
+            # Get the emoji for this mood
+            emoji = self._reaction_analyzer.get_reaction_emoji(mood)
+            if not emoji:
+                logger.warning(f"No emoji configured for mood: {mood}")
+                return
+
+            # Set the reaction
+            await message.set_reaction(emoji)
+            logger.info(f"Set reaction {emoji} for mood {mood}")
+
+        except Exception:
+            # Don't fail the message handling if reactions fail
+            logger.exception("Failed to add reaction")
 
 
 def _normalize_markdown_for_telegram(text: str) -> str:

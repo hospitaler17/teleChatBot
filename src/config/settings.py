@@ -55,6 +55,43 @@ class AccessSettings(BaseModel):
 
     allowed_user_ids: list[int] = Field(default_factory=list)
     allowed_chat_ids: list[int] = Field(default_factory=list)
+    reactions_enabled: bool = True  # Runtime toggle for reactions
+
+
+class ReactionSettings(BaseModel):
+    """Settings for automatic message reactions.
+
+    Attributes:
+        enabled: Whether the reaction feature is enabled by default
+        model: The Mistral model to use for mood analysis
+        system_prompt: Prompt instructing the model how to analyze mood
+        probability: Probability (0.0-1.0) of analyzing a message
+        min_words: Minimum word count to trigger analysis
+        moods: Dictionary mapping mood names to emoji reactions
+    """
+
+    enabled: bool = False
+    model: str = "mistral-small-latest"
+    system_prompt: str = (
+        "Analyze the sentiment and mood of the user's message. "
+        "Respond with ONLY ONE word from this list: "
+        "positive, negative, neutral, funny, sad, angry, excited, thoughtful. "
+        "Do not provide explanations, just the mood word."
+    )
+    probability: float = 0.3
+    min_words: int = 5
+    moods: dict[str, str] = Field(
+        default_factory=lambda: {
+            "positive": "👍",
+            "negative": "👎",
+            "neutral": "🤔",
+            "funny": "😄",
+            "sad": "😢",
+            "angry": "😠",
+            "excited": "🎉",
+            "thoughtful": "💭",
+        }
+    )
 
 
 class AppSettings(BaseSettings):
@@ -75,6 +112,7 @@ class AppSettings(BaseSettings):
     bot: BotSettings = Field(default_factory=BotSettings)
     admin: AdminSettings = Field(default_factory=AdminSettings)
     access: AccessSettings = Field(default_factory=AccessSettings)
+    reactions: ReactionSettings = Field(default_factory=ReactionSettings)
 
     @classmethod
     def load(cls, config_dir: Path | None = None) -> Self:
@@ -108,6 +146,7 @@ class AppSettings(BaseSettings):
             bot=BotSettings(**yaml_data.get("bot", {})),
             admin=AdminSettings(**yaml_data.get("admin", {})),
             access=AccessSettings(**access_data),
+            reactions=ReactionSettings(**yaml_data.get("reactions", {})),
         )
 
     def save_access(self, config_dir: Path | None = None) -> None:
@@ -118,6 +157,7 @@ class AppSettings(BaseSettings):
         data = {
             "allowed_user_ids": self.access.allowed_user_ids,
             "allowed_chat_ids": self.access.allowed_chat_ids,
+            "reactions_enabled": self.access.reactions_enabled,
         }
         with open(access_path, "w", encoding="utf-8") as fh:
             yaml.safe_dump(data, fh, default_flow_style=False)
