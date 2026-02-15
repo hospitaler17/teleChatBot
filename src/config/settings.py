@@ -41,6 +41,7 @@ class BotSettings(BaseModel):
     username: str = ""
     language: str = "ru"
     max_message_length: int = 4096
+    cli_mode: bool = False  # Run in CLI mode instead of Telegram bot
 
 
 class AdminSettings(BaseModel):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -10,11 +11,34 @@ from mistralai import Mistral
 from mistralai.models import SystemMessage, UserMessage
 
 from src.api.conversation_memory import ConversationMemory
-from src.api.model_selector import TOKEN_ESTIMATION_MULTIPLIER, ModelSelector
+from src.api.model_selector import TOKEN_ESTIMATION_MULTIPLIER, ModelSelector, requires_current_date
 from src.api.web_search import WebSearchClient
 from src.config.settings import AppSettings
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class GenerateResponse:
+    """Response from model generation with metadata.
+
+    Attributes:
+        content: The generated text response
+        model: The model used for generation
+        input_tokens: Number of input tokens used
+        output_tokens: Number of output tokens generated
+        total_tokens: Total tokens used (input + output)
+    """
+
+    content: str
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens used."""
+        return self.input_tokens + self.output_tokens
 
 
 class MistralClient:
@@ -47,9 +71,9 @@ class MistralClient:
             settings.mistral.conversation_history_size,
         )
 
-    async def generate(self, prompt: str, user_id: Optional[int] = None) -> str:
+    async def generate(self, prompt: str, user_id: Optional[int] = None) -> GenerateResponse:
         """
-        Send *prompt* to the Mistral model and return the text response.
+        Send *prompt* to the Mistral model and return the response with metadata.
 
         Args:
             prompt: The user's message/question
@@ -57,19 +81,48 @@ class MistralClient:
                      (user_id for private chats, chat_id for groups)
 
         Returns:
-            The model's text response
+            GenerateResponse with content, model, and token usage information
         """
         try:
             messages = []
 
-            # Build system message with current date
+            # Build system message
             system_content = self._settings.mistral.system_prompt
-            current_date = datetime.now().strftime("%d.%m.%Y")
-            current_datetime = datetime.now().strftime("%d.%m.%Y %H:%M")
-            date_info = (
-                f"\\n\\nТекущая дата: {current_date}. Текущие дата и время: {current_datetime}."
-            )
-            system_content = (system_content + date_info) if system_content else date_info.strip()
+
+            # Add current date to system prompt if query requires it
+            # This ensures the model always sees the correct date for time-sensitive queries
+            if requires_current_date(prompt):
+                now = datetime.now()
+                # Format date in a clear, unambiguous way (in Russian for better understanding)
+                months_ru = [
+                    "января", "февраля", "марта", "апреля", "мая", "июня",
+                    "июля", "августа", "сентября", "октября", "ноября", "декабря"
+                ]
+                current_date_str = f"{now.day} {months_ru[now.month - 1]} {now.year} года"
+                current_time = now.strftime("%H:%M")
+                
+                # Add explicit date context with clear instructions (English)
+                # Make it very prominent so the model cannot ignore it
+                date_info = (
+                    f"\n\n[CRITICAL CONTEXT - CURRENT DATE]\n"
+                    f"TODAY: {current_date_str} ({now.year})\n"
+                    f"CURRENT YEAR: {now.year}\n"
+                    f"TIME: {current_time}\n\n"
+                    f"IMPORTANT INSTRUCTIONS:\n"
+                    f"- Use THIS DATE ({now.year}) for all time-sensitive queries\n"
+                    f"- Your training data is from 2024 and earlier — it is OUTDATED\n"
+                    f"- When user asks about 'this year' or 'recently', they mean {now.year}\n"
+                    f"- Do NOT mention dates from your training period (2023-2024)\n"
+                    f"- Answer as if you have current {now.year} information\n"
+                )
+                system_content += date_info
+                logger.info(f"Added current date to system prompt: {current_date_str}")
+
+                # Also add to context history for multi-turn conversations
+                if user_id is not None:
+                    date_context = f"Current date: {current_date_str}. Current time: {current_time}."
+                    self._memory.add_system_context(user_id, date_context)
+                    logger.debug(f"Added date context to conversation memory for user {user_id}")
 
             # Perform web search if enabled and query seems to need it
             web_results = ""
@@ -77,7 +130,7 @@ class MistralClient:
                 logger.info("Performing web search for query")
                 web_results = await self._web_search.search(prompt, count=3)
                 if web_results:
-                    system_content += f"\\n\\nРезультаты поиска в интернете:\\n{web_results}"
+                    system_content += f"\n\nWeb search results:\n{web_results}"
                     logger.info("Added web search results to context")
 
             # Add system message if present
@@ -139,7 +192,25 @@ class MistralClient:
                 logger.error("Mistral API returned unexpected content type: %r", type(content))
                 raise TypeError("Mistral API returned non-string message content")
 
-            return content
+            # Extract token usage information
+            usage = getattr(response, "usage", None)
+            input_tokens = 0
+            output_tokens = 0
+            if usage:
+                input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                output_tokens = getattr(usage, "completion_tokens", 0) or 0
+
+            logger.info(
+                f"Generated response with {output_tokens} output tokens "
+                f"(input: {input_tokens}, total: {input_tokens + output_tokens})"
+            )
+
+            return GenerateResponse(
+                content=content,
+                model=selected_model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
         except (ValueError, TypeError):
             # Re-raise validation errors with their specific messages
             raise

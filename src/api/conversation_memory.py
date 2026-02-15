@@ -51,6 +51,21 @@ class ConversationMemory:
             f"history size: {len(self.history[user_id])}"
         )
 
+    def add_system_context(self, user_id: int, context: str) -> None:
+        """
+        Add a system context message (not visible to user, only to model).
+
+        Useful for providing background information like current date,
+        search results, or other metadata that should inform the model
+        but not appear in the user-facing conversation.
+
+        Args:
+            user_id: Context ID - user_id for private chats, chat_id for groups
+            context: Context content to add
+        """
+        self.history[user_id].append({"role": "system", "content": context})
+        logger.debug(f"Added system context for user {user_id}: {context[:100]}...")
+
     def get_history(self, user_id: int) -> list:
         """
         Get conversation history for a context.
@@ -79,6 +94,7 @@ class ConversationMemory:
                 messages.append(UserMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
                 messages.append(AssistantMessage(content=msg["content"]))
+            # Note: system context messages are handled separately in mistral_client.py
 
         return messages
 

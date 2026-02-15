@@ -14,6 +14,93 @@ logger = logging.getLogger(__name__)
 TOKEN_ESTIMATION_MULTIPLIER = 1.3
 
 
+def requires_current_date(prompt: str) -> bool:
+    """
+    Determine if current date context is needed for this request.
+
+    Detects queries that require knowledge of the current date:
+    - News and current events
+    - Weather and forecasts
+    - Prices and exchange rates
+    - Schedules and timetables
+    - Today-specific information
+
+    Args:
+        prompt: The user's message
+
+    Returns:
+        True if current date context should be provided
+    """
+    prompt_lower = prompt.lower()
+
+    date_keywords = [
+        # Current/Today (Russian & English)
+        "сегодня",
+        "завтра",
+        "сейчас",
+        "текущ",
+        "today",
+        "now",
+        "current",
+        # News and events
+        "новост",
+        "событи",
+        "происход",
+        "случи",
+        "news",
+        "event",
+        "happened",
+        # Weather
+        "погод",
+        "температур",
+        "дождь",
+        "снег",
+        "weather",
+        "temperature",
+        "rain",
+        "snow",
+        # Prices and markets
+        "цена",
+        "курс",
+        "акци",
+        "котировк",
+        "биржа",
+        "price",
+        "exchange",
+        "stock",
+        "rate",
+        # Schedule/Time
+        "расписани",
+        "график",
+        "когда",
+        "schedule",
+        "when",
+        # Latest/Recent
+        "последн",
+        "свеж",
+        "актуальн",
+        "latest",
+        "recent",
+        # This year/month/time period
+        "этом году",
+        "этого года",
+        "в этом",
+        "за этот",
+        "this year",
+        "this month",
+        "выпущен",
+        "вышедш",
+        "вышли",
+        "released",
+        "came out",
+        "недавно",
+        "recently",
+        "fresh",
+    ]
+
+    return any(keyword in prompt_lower for keyword in date_keywords)
+
+
 @dataclass
 class ModelCharacteristics:
     """Characteristics of a Mistral AI model."""

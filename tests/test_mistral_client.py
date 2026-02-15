@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.api.mistral_client import MistralClient
+from src.api.mistral_client import MistralClient, GenerateResponse
+from src.api.model_selector import requires_current_date
 from src.config.settings import AppSettings, MistralSettings
 
 
@@ -16,6 +17,23 @@ def settings() -> AppSettings:
         mistral_api_key="fake-key",
         mistral=MistralSettings(model="mistral-small-latest"),
     )
+
+
+def test_requires_current_date_with_date_keywords() -> None:
+    """requires_current_date() should return True for queries about current date."""
+    assert requires_current_date("What happened today?")
+    assert requires_current_date("Какие новости сегодня?")
+    assert requires_current_date("Какая будет погода завтра?")
+    assert requires_current_date("What's the current exchange rate?")
+    assert requires_current_date("Покажи последние новости")
+
+
+def test_requires_current_date_without_date_keywords() -> None:
+    """requires_current_date() should return False for queries that don't need current date."""
+    assert not requires_current_date("What is Python?")
+    assert not requires_current_date("Напиши функцию")
+    assert not requires_current_date("Как работает интернет?")
+    assert not requires_current_date("Write a poem about love")
 
 
 @patch("src.api.mistral_client.Mistral")
@@ -28,7 +46,7 @@ def test_client_init(mock_mistral: MagicMock, settings: AppSettings) -> None:
 @patch("src.api.mistral_client.Mistral")
 @pytest.mark.asyncio
 async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
-    """generate() should return the model's text response."""
+    """generate() should return GenerateResponse with model text and metadata."""
     mock_client = MagicMock()
     mock_response = MagicMock()
     mock_message = MagicMock()
@@ -36,12 +54,23 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
+    # Mock usage information
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 10
+    mock_usage.completion_tokens = 15
+    mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
     result = await client.generate("Hi")
-    assert result == "Hello from Mistral!"
+    
+    # Check result is GenerateResponse
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "Hello from Mistral!"
+    assert result.input_tokens == 10
+    assert result.output_tokens == 15
+    assert result.total_tokens == 25
 
     # Verify that complete_async was called with the expected arguments
     mock_client.chat.complete_async.assert_called_once()
@@ -50,8 +79,8 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
     assert kwargs["model"] == "mistral-small-latest"
     # Ensure the user message content is correctly forwarded
     assert isinstance(kwargs["messages"], list)
-    # Should have SystemMessage (with date/time) + UserMessage
-    assert len(kwargs["messages"]) >= 2, "Should have system message and user message"
+    # Should have at least UserMessage (no system prompt configured, no date needed)
+    assert len(kwargs["messages"]) >= 1, "Should have at least user message"
     # Last message should be the user message
     assert kwargs["messages"][-1].role == "user"
     assert kwargs["messages"][-1].content == "Hi"
@@ -78,12 +107,17 @@ async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 5
+    mock_usage.completion_tokens = 8
+    mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
     result = await client.generate("Hi")
-    assert result == "I'm here to help!"
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "I'm here to help!"
 
     # Verify messages include both system and user
     mock_client.chat.complete_async.assert_called_once()
@@ -92,15 +126,91 @@ async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
     assert len(messages) == 2
     # First message should be system
     assert messages[0].role == "system"
-    # System message should contain the prompt and also date/time info
+    # System message should contain only the configured prompt
     assert "You are a helpful assistant." in messages[0].content
-    assert "дата" in messages[0].content.lower() or "время" in messages[0].content.lower()
     # Second message should be user
     assert messages[1].role == "user"
     assert messages[1].content == "Hi"
-    # Second message should be user
-    assert messages[1].role == "user"
-    assert messages[1].content == "Hi"
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_with_date_context(mock_mistral: MagicMock) -> None:
+    """generate() should add current date to system prompt for time-sensitive queries."""
+    settings = AppSettings(
+        mistral_api_key="fake-key",
+        mistral=MistralSettings(model="mistral-small-latest"),
+    )
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_message = MagicMock()
+    mock_message.content = "Today is a great day!"
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 12
+    mock_usage.completion_tokens = 6
+    mock_response.usage = mock_usage
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_mistral.return_value = mock_client
+
+    client = MistralClient(settings)
+    # Query that requires date context (contains "today")
+    result = await client.generate("What happened today?", user_id=123)
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "Today is a great day!"
+
+    # Verify that date was added to system prompt
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    # First message should be system message with date
+    assert messages[0].role == "system"
+    # Check for date/instruction in English (more explicit)
+    assert "CURRENT YEAR" in messages[0].content or "CRITICAL CONTEXT" in messages[0].content
+
+    # Also verify that date context was added to conversation memory
+    history = client._memory.get_history(123)
+    # Should have system context with date
+    system_messages = [msg for msg in history if msg["role"] == "system"]
+    assert len(system_messages) > 0
+    assert "Current date:" in system_messages[0]["content"]
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_without_date_context(mock_mistral: MagicMock, settings: AppSettings) -> None:
+    """generate() should NOT add date for queries that don't need current date."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_message = MagicMock()
+    mock_message.content = "Python is great!"
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 8
+    mock_usage.completion_tokens = 4
+    mock_response.usage = mock_usage
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_mistral.return_value = mock_client
+
+    client = MistralClient(settings)
+    # Query that does NOT require date (simple question)
+    result = await client.generate("What is Python?")
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "Python is great!"
+
+    # Verify that date was NOT added to system prompt
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    # System message should not contain date
+    if len(messages) > 0 and messages[0].role == "system":
+        assert "CURRENT YEAR" not in messages[0].content
+        assert "CRITICAL CONTEXT" not in messages[0].content
 
 
 @patch("src.api.mistral_client.Mistral")
@@ -114,12 +224,17 @@ async def test_generate_code_request(mock_mistral: MagicMock, settings: AppSetti
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 15
+    mock_usage.completion_tokens = 10
+    mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
     result = await client.generate("Write a Python function to sort a list")
-    assert result == "def hello(): print('hi')"
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "def hello(): print('hi')"
 
     # Verify that codestral model was selected
     mock_client.chat.complete_async.assert_called_once()
@@ -138,12 +253,17 @@ async def test_generate_complex_request(mock_mistral: MagicMock, settings: AppSe
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 20
+    mock_usage.completion_tokens = 30
+    mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
     result = await client.generate("Analyze step by step why this approach works")
-    assert result == "Detailed analysis..."
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "Detailed analysis..."
 
     # Verify that large model was selected
     mock_client.chat.complete_async.assert_called_once()
@@ -190,6 +310,10 @@ async def test_generate_missing_content(mock_mistral: MagicMock, settings: AppSe
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 5
+    mock_usage.completion_tokens = 0
+    mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
     mock_mistral.return_value = mock_client
 
@@ -209,6 +333,10 @@ async def test_generate_non_string_content(mock_mistral: MagicMock, settings: Ap
     mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 5
+    mock_usage.completion_tokens = 0
+    mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
     mock_mistral.return_value = mock_client
 

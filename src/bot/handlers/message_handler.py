@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from telegram import Message, Update
 from telegram.constants import ChatAction
@@ -107,7 +108,8 @@ class MessageHandler:
         await context.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
         try:
-            response_text = await self._mistral.generate(prompt, user_id=context_id)
+            response = await self._mistral.generate(prompt, user_id=context_id)
+            response_text = response.content
         except Exception:
             logger.exception("Failed to generate response")
             await message.reply_text("⚠️ Произошла ошибка при обращении к модели. Попробуйте позже.")
@@ -124,7 +126,9 @@ class MessageHandler:
         # Send response (split by max length)
         max_len = self._settings.bot.max_message_length
         for chunk in _split_text(response_text, max_len):
-            await message.reply_text(chunk, parse_mode="Markdown")
+            # Normalize markdown for Telegram compatibility
+            normalized = _normalize_markdown_for_telegram(chunk)
+            await message.reply_text(normalized, parse_mode="Markdown")
 
     # ------------------------------------------------------------------
 
@@ -244,6 +248,33 @@ class MessageHandler:
         if bot_username:
             text = text.replace(f"@{bot_username}", "").strip()
         return text
+
+
+def _normalize_markdown_for_telegram(text: str) -> str:
+    """Convert markdown to Telegram-compatible format.
+
+    Telegram supports: *bold*, _italic_, __underline__, ~strikethrough~, `code`
+    But NOT: **bold** (double asterisks), ### headers, - lists (shows as-is)
+    
+    Conversions:
+    - #### Heading → *Heading* (bold)
+    - ### Heading → *Heading* (bold)
+    - ## Heading → *Heading* (bold)
+    - **text** → *text* (double asterisks to single)
+    - - list item → • list item (for better formatting)
+    """
+    import re
+    
+    # Convert markdown headers (####, ###, ##) to bold
+    text = re.sub(r'^#{2,4}\s+(.+?)$', r'*\1*', text, flags=re.MULTILINE)
+    
+    # Convert double asterisks to single (markdown bold to Telegram bold)
+    text = text.replace('**', '*')
+    
+    # Convert markdown dashes to bullet points for better readability
+    text = re.sub(r'^-\s+', '• ', text, flags=re.MULTILINE)
+    
+    return text
 
 
 def _split_text(text: str, max_length: int) -> list[str]:

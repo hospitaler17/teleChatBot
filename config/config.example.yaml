@@ -36,6 +36,10 @@ bot:
   language: "ru"
   # Maximum message length before truncation
   max_message_length: 4096
+  # CLI mode: Run in command-line interface instead of Telegram bot
+  # Useful for debugging system prompts and testing model responses
+  # Set to true for local testing, false for production Telegram bot
+  cli_mode: false
 
 # Admin settings
 admin:
