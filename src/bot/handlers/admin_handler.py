@@ -119,7 +119,9 @@ class AdminHandler:
             return
         users = self._settings.access.allowed_user_ids or ["(пусто)"]
         chats = self._settings.access.allowed_chat_ids or ["(пусто)"]
-        reactions_status = "Включены ✅" if self._settings.access.reactions_enabled else "Выключены ❌"
+        reactions_status = (
+            "Включены ✅" if self._settings.access.reactions_enabled else "Выключены ❌"
+        )
         text = (
             "📋 *Текущие настройки доступа:*\n\n"
             f"*Пользователи:*\n{_format_list(users)}\n\n"

@@ -6,7 +6,7 @@ import logging
 import re
 
 from telegram import Message, Update
-from telegram.constants import ChatAction, ReactionEmoji
+from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
 from src.api.mistral_client import MistralClient
