@@ -109,13 +109,17 @@ async def _safe_edit_message(
             if "message is not modified" in error_msg:
                 # Content unchanged, consider it a success
                 return True
-            elif "can't parse entities" in error_msg or "parse" in error_msg:
-                # Try again without parse mode (only once)
+            elif (
+                "can't parse entities" in error_msg
+                or "can't parse" in error_msg
+                or "parse error" in error_msg
+            ):
+                # Try again without parse mode (preserve retry count)
                 if parse_mode is not None and allow_parse_retry:
                     logger.warning(f"Markdown parse error, retrying as plain text: {e}")
                     return await _safe_edit_message(
                         message, text, parse_mode=None,
-                        max_retries=1, allow_parse_retry=False
+                        max_retries=max_retries, allow_parse_retry=False
                     )
             # For other BadRequest errors, fail
             logger.warning(f"Failed to edit message: {e}")
@@ -167,14 +171,19 @@ async def _safe_send_message(
                 )
                 return None
         except BadRequest as e:
-            # Try again without parse mode if it's a parse error (only once)
+            # Try again without parse mode if it's a parse error
             error_msg = str(e).lower()
-            if "can't parse entities" in error_msg or "parse" in error_msg:
+            if (
+                "can't parse entities" in error_msg
+                or "can't parse message text" in error_msg
+                or "can't parse caption" in error_msg
+                or "parse error" in error_msg
+            ):
                 if parse_mode is not None and allow_parse_retry:
                     logger.warning(f"Markdown parse error, retrying as plain text: {e}")
                     return await _safe_send_message(
                         message, text, parse_mode=None,
-                        max_retries=1, allow_parse_retry=False
+                        max_retries=max_retries, allow_parse_retry=False
                     )
             # For other BadRequest errors, fail
             logger.warning(f"Failed to send message: {e}")
@@ -392,9 +401,17 @@ class MessageHandler:
 
                     if sent_message:
                         # Update the first message with proper prefix
-                        await _safe_edit_message(
+                        edit_success = await _safe_edit_message(
                             sent_message, first_chunk_text, parse_mode="Markdown"
                         )
+                        if not edit_success:
+                            logger.warning(
+                                "Failed to edit first chunk of multi-part message; "
+                                "sending new message instead"
+                            )
+                            sent_message = await _safe_send_message(
+                                message, first_chunk_text, parse_mode="Markdown"
+                            )
                     else:
                         # First message was never sent (short response), send it now
                         sent_message = await _safe_send_message(
@@ -407,13 +424,25 @@ class MessageHandler:
                         chunk_text = (
                             f"({MSG_MULTI_PART_PREFIX} {i}/{len(chunks)})\n\n{normalized}"
                         )
-                        await _safe_send_message(message, chunk_text, parse_mode="Markdown")
+                        result = await _safe_send_message(
+                            message, chunk_text, parse_mode="Markdown"
+                        )
+                        if result is None:
+                            logger.warning(
+                                f"Failed to send chunk {i}/{len(chunks)} of multi-part message"
+                            )
                 else:
                     # Single message: ensure it's sent or updated properly
                     normalized = _normalize_markdown_for_telegram(chunks[0])
                     if sent_message:
                         # Update to remove streaming indicator if present
-                        await _safe_edit_message(sent_message, normalized, parse_mode="Markdown")
+                        success = await _safe_edit_message(
+                            sent_message, normalized, parse_mode="Markdown"
+                        )
+                        if not success:
+                            logger.warning(
+                                "Failed to update final streaming message to remove indicator"
+                            )
                     else:
                         # Short response that never triggered threshold, send now
                         sent_message = await _safe_send_message(
@@ -435,12 +464,16 @@ class MessageHandler:
             logger.exception("Failed during streaming response")
             # Send error message
             if sent_message is None:
-                await _safe_send_message(message, MSG_ERROR, parse_mode=None)
+                error_msg_sent = await _safe_send_message(message, MSG_ERROR, parse_mode=None)
+                if error_msg_sent is None:
+                    logger.error("Failed to send error message to user")
             else:
                 # Try to edit, if that fails, send a new message
                 success = await _safe_edit_message(sent_message, MSG_ERROR, parse_mode=None)
                 if not success:
-                    await _safe_send_message(message, MSG_ERROR, parse_mode=None)
+                    error_msg_sent = await _safe_send_message(message, MSG_ERROR, parse_mode=None)
+                    if error_msg_sent is None:
+                        logger.error("Failed to send error message to user")
 
     # ------------------------------------------------------------------
 

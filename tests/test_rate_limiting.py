@@ -169,3 +169,60 @@ async def test_safe_send_message_handles_parse_error() -> None:
     # First call with Markdown, second call without parse_mode
     message.reply_text.assert_any_await("test text", parse_mode="Markdown")
     message.reply_text.assert_any_await("test text", parse_mode=None)
+
+
+@pytest.mark.asyncio
+async def test_safe_edit_message_parse_error_then_retry_after() -> None:
+    """Test parse error fallback encountering RetryAfter during plain text retry."""
+    from telegram.error import BadRequest
+
+    message = MagicMock()
+    parse_error = BadRequest("Can't parse entities")
+    retry_error = RetryAfter(1)
+
+    # First call with Markdown fails with parse error,
+    # second call without parse_mode fails with RetryAfter,
+    # third call succeeds
+    message.edit_text = AsyncMock(side_effect=[parse_error, retry_error, None])
+
+    with patch(
+        "src.bot.handlers.message_handler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
+        result = await _safe_edit_message(message, "test text", max_retries=3)
+
+    assert result is True
+    assert message.edit_text.await_count == 3
+    # Should have slept once during RetryAfter handling
+    mock_sleep.assert_awaited_once_with(1.5)
+    # Verify the sequence: Markdown, plain text with retry
+    message.edit_text.assert_any_await("test text", parse_mode="Markdown")
+    message.edit_text.assert_any_await("test text", parse_mode=None)
+
+
+@pytest.mark.asyncio
+async def test_safe_send_message_parse_error_then_retry_after() -> None:
+    """Test parse error fallback encountering RetryAfter during plain text retry."""
+    from telegram.error import BadRequest
+
+    message = MagicMock()
+    sent_message = MagicMock()
+    parse_error = BadRequest("Can't parse entities")
+    retry_error = RetryAfter(1)
+
+    # First call with Markdown fails with parse error,
+    # second call without parse_mode fails with RetryAfter,
+    # third call succeeds
+    message.reply_text = AsyncMock(side_effect=[parse_error, retry_error, sent_message])
+
+    with patch(
+        "src.bot.handlers.message_handler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
+        result = await _safe_send_message(message, "test text", max_retries=3)
+
+    assert result == sent_message
+    assert message.reply_text.await_count == 3
+    # Should have slept once during RetryAfter handling
+    mock_sleep.assert_awaited_once_with(1.5)
+    # Verify the sequence: Markdown, plain text with retry
+    message.reply_text.assert_any_await("test text", parse_mode="Markdown")
+    message.reply_text.assert_any_await("test text", parse_mode=None)
