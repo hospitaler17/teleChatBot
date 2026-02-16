@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -16,6 +17,12 @@ from src.api.web_search import WebSearchClient
 from src.config.settings import AppSettings
 
 logger = logging.getLogger(__name__)
+
+# Russian month names for date formatting
+RUSSIAN_MONTHS = [
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря"
+]
 
 
 @dataclass
@@ -94,11 +101,7 @@ class MistralClient:
             if requires_current_date(prompt):
                 now = datetime.now()
                 # Format date in a clear, unambiguous way (in Russian for better understanding)
-                months_ru = [
-                    "января", "февраля", "марта", "апреля", "мая", "июня",
-                    "июля", "августа", "сентября", "октября", "ноября", "декабря"
-                ]
-                current_date_str = f"{now.day} {months_ru[now.month - 1]} {now.year} года"
+                current_date_str = f"{now.day} {RUSSIAN_MONTHS[now.month - 1]} {now.year} года"
                 current_time = now.strftime("%H:%M")
 
                 # Add explicit date context with clear instructions (English)
@@ -220,6 +223,138 @@ class MistralClient:
         except Exception:
             # Catch and log any other unexpected errors
             logger.exception("Mistral API call failed")
+            raise
+
+    async def generate_stream(
+        self, prompt: str, user_id: Optional[int] = None
+    ) -> AsyncIterator[tuple[str, str, bool]]:
+        """
+        Stream response from Mistral model progressively.
+
+        Args:
+            prompt: The user's message/question
+            user_id: Context ID for conversation history tracking
+
+        Yields:
+            Tuples of (chunk_content, accumulated_content, is_final)
+            - chunk_content: New text fragment received
+            - accumulated_content: Complete text so far
+            - is_final: True on the last chunk with final metadata
+        """
+        try:
+            messages = []
+            accumulated_content = ""
+
+            # Build system message (same logic as generate)
+            system_content = self._settings.mistral.system_prompt
+
+            if requires_current_date(prompt):
+                now = datetime.now()
+                current_date_str = f"{now.day} {RUSSIAN_MONTHS[now.month - 1]} {now.year} года"
+                current_time = now.strftime("%H:%M")
+
+                date_info = (
+                    f"\n\n[CRITICAL CONTEXT - CURRENT DATE]\n"
+                    f"TODAY: {current_date_str} ({now.year})\n"
+                    f"CURRENT YEAR: {now.year}\n"
+                    f"TIME: {current_time}\n\n"
+                    f"IMPORTANT INSTRUCTIONS:\n"
+                    f"- Use THIS DATE ({now.year}) for all time-sensitive queries\n"
+                    f"- Your training data is from 2024 and earlier — it is OUTDATED\n"
+                    f"- When user asks about 'this year' or 'recently', they mean {now.year}\n"
+                    f"- Do NOT mention dates from your training period (2023-2024)\n"
+                    f"- Answer as if you have current {now.year} information\n"
+                )
+                system_content += date_info
+                logger.info(f"Added current date to system prompt: {current_date_str}")
+
+                if user_id is not None:
+                    date_context = (
+                        f"Current date: {current_date_str}. Current time: {current_time}."
+                    )
+                    self._memory.add_system_context(user_id, date_context)
+                    logger.debug(
+                        f"Added date context to conversation memory for user {user_id}"
+                    )
+
+            # Perform web search if enabled
+            if self._web_search and self._should_use_web_search(prompt):
+                logger.info("Performing web search for query")
+                web_results = await self._web_search.search(prompt, count=3)
+                if web_results:
+                    system_content += f"\n\nWeb search results:\n{web_results}"
+                    logger.info("Added web search results to context")
+
+            if system_content:
+                messages.append(SystemMessage(role="system", content=system_content))
+
+            # Add conversation history
+            conversation_length = 0
+            if user_id is not None:
+                history_messages = self._memory.get_messages_for_api(user_id)
+                messages.extend(history_messages)
+                for msg in history_messages:
+                    msg_tokens = len(str(msg.content).split()) * TOKEN_ESTIMATION_MULTIPLIER
+                    conversation_length += msg_tokens
+                if history_messages:
+                    logger.debug(
+                        f"Added {len(history_messages)} messages from "
+                        f"conversation history for context {user_id}"
+                    )
+
+            messages.append(UserMessage(role="user", content=prompt))
+
+            # Select appropriate model
+            selected_model = self._model_selector.select_model(
+                prompt=prompt,
+                conversation_length=int(conversation_length),
+                has_images=False,
+            )
+            logger.info(f"Selected model for streaming: {selected_model}")
+
+            # Build request kwargs
+            request_kwargs = {
+                "model": selected_model,
+                "messages": messages,
+                "max_tokens": self._settings.mistral.max_tokens,
+                "temperature": self._settings.mistral.temperature,
+            }
+
+            # Stream the response
+            input_tokens = 0
+            output_tokens = 0
+
+            stream = await self._client.chat.stream_async(**request_kwargs)
+
+            async for chunk in stream:
+                # Extract content delta from chunk
+                if hasattr(chunk, "data") and chunk.data:
+                    data = chunk.data
+                    choices = getattr(data, "choices", None)
+
+                    if choices and len(choices) > 0:
+                        delta = getattr(choices[0], "delta", None)
+                        if delta:
+                            content_delta = getattr(delta, "content", None)
+                            if content_delta:
+                                accumulated_content += content_delta
+                                yield (content_delta, accumulated_content, False)
+
+                    # Extract usage information if present (usually in the last chunk)
+                    usage = getattr(data, "usage", None)
+                    if usage:
+                        input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                        output_tokens = getattr(usage, "completion_tokens", 0) or 0
+
+            # Yield final chunk with metadata
+            logger.info(
+                f"Streaming completed: {output_tokens} output tokens "
+                f"(input: {input_tokens}, total: {input_tokens + output_tokens})"
+            )
+            yield ("", accumulated_content, True)
+
+        except Exception:
+            logger.exception("Mistral streaming API call failed")
             raise
 
     def _should_use_web_search(self, prompt: str) -> bool:
