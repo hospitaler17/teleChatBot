@@ -363,6 +363,11 @@ class MistralClient:
 
         Uses keywords to detect queries that likely need current information
         or explicit search requests.
+
+        Uses simple substring matching to prioritize recall over precision:
+        some false positives are acceptable to ensure explicit search
+        requests are not missed and to maintain broad coverage of query
+        variations.
         """
         prompt_lower = prompt.lower()
 
@@ -393,6 +398,7 @@ class MistralClient:
             "what happened",
             "что случилось",
             # Explicit search requests
+            # Using more specific phrases to reduce false positives
             "поиск",
             "поищи",
             "найди",
@@ -400,18 +406,21 @@ class MistralClient:
             "искать",
             "погугли",
             "узнай",
-            "посмотри",
-            "проверь",
+            "посмотри в интернете",
+            "посмотри в сети",
+            "проверь онлайн",
             "интернет",
             "в сети",
             "онлайн",
             "search",
-            "find",
+            "find information",
+            "find info",
+            "find articles",
             "look up",
             "google",
-            "check",
+            "check online",
+            "search online",
             "internet",
-            "online",
         ]
 
         return any(keyword in prompt_lower for keyword in search_keywords)

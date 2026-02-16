@@ -366,10 +366,12 @@ def test_should_use_web_search_with_explicit_search_requests(
 
     # English explicit search requests
     assert client._should_use_web_search("search for information")
+    assert client._should_use_web_search("find information about AI")
     assert client._should_use_web_search("find articles about AI")
     assert client._should_use_web_search("look up recent news")
     assert client._should_use_web_search("google this")
     assert client._should_use_web_search("check online")
+    assert client._should_use_web_search("search online")
     assert client._should_use_web_search("search the internet")
 
 
@@ -406,3 +408,12 @@ def test_should_use_web_search_without_search_keywords(
     assert not client._should_use_web_search("What is machine learning?")
     assert not client._should_use_web_search("Write a poem")
     assert not client._should_use_web_search("Tell me about history")
+
+    # Edge cases that contain broad keywords but should not trigger web search.
+    # These help ensure we don't introduce unnecessary web searches (false positives).
+    assert not client._should_use_web_search("Can you check this code for errors?")
+    assert not client._should_use_web_search("I find Python very interesting")
+    assert not client._should_use_web_search("The system is online now")
+    assert not client._should_use_web_search("посмотри на этот код")
+    assert not client._should_use_web_search("проверь этот код")
+    assert not client._should_use_web_search("I can't find my keys")
