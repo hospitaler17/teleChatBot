@@ -633,7 +633,7 @@ def _normalize_markdown_for_telegram(text: str) -> str:
     This is a legacy wrapper that delegates to the new utility function.
     Use src.utils.telegram_format.markdown_to_telegram directly in new code.
 
-    Telegram supports: *bold*, _italic*, __underline__, ~strikethrough~, `code`
+    Telegram supports: *bold*, _italic_, __underline__, ~strikethrough~, `code`
     But NOT: **bold** (double asterisks), ### headers, - lists (shows as-is)
 
     Conversions:
