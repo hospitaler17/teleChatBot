@@ -77,7 +77,7 @@ async def _safe_edit_message(
         message: The message to edit
         text: New text content
         parse_mode: Parse mode for formatting (default: "Markdown")
-        max_retries: Maximum number of retry attempts (default: 3)
+        max_retries: Maximum total attempts (default: 3, including initial attempt)
         allow_parse_retry: Allow retry with parse_mode=None on parse errors
 
     Returns:
@@ -141,7 +141,7 @@ async def _safe_send_message(
         message: The original message to reply to
         text: Text content to send
         parse_mode: Parse mode for formatting (default: "Markdown")
-        max_retries: Maximum number of retry attempts (default: 3)
+        max_retries: Maximum total attempts (default: 3, including initial attempt)
         allow_parse_retry: Allow retry with parse_mode=None on parse errors
 
     Returns:
