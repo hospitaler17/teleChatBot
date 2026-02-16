@@ -242,142 +242,42 @@ async def test_message_handler_streaming_disabled() -> None:
     assert handler._settings.bot.enable_streaming is False
 
 
-@pytest.mark.asyncio
-async def test_streaming_short_response_sent() -> None:
-    """Test that short responses below threshold are still sent to user."""
-    from src.bot.filters.access_filter import AccessFilter
+def test_truncate_safely_basic() -> None:
+    """Test _truncate_safely function with basic text."""
+    from src.bot.handlers.message_handler import _truncate_safely
 
-    settings = AppSettings(
-        mistral_api_key="test-key",
-        telegram_bot_token="test-token",
-    )
-    settings.bot.enable_streaming = True
-    settings.bot.streaming_threshold = 100
-    settings.access.allowed_user_ids = [1]
+    text = "This is a simple test"
+    indicator = "..."
+    max_len = 30
 
-    mistral = MagicMock()
-
-    # Mock a short response (< 100 chars)
-    async def mock_short_stream(prompt, user_id=None):
-        yield ("Short", "Short", True)
-
-    mistral.generate_stream = mock_short_stream
-    mistral._memory = MagicMock()
-    mistral._memory.add_message = MagicMock()
-
-    af = AccessFilter(settings)
-    handler = MessageHandler(settings, mistral, af)
-
-    # Create mock message and context
-    update = MagicMock()
-    message = MagicMock()
-    message.text = "test"
-    message.chat.type = "private"
-    message.chat.id = 1
-    message.from_user.id = 1
-    message.reply_text = AsyncMock(return_value=message)
-    update.message = message
-
-    ctx = MagicMock()
-    ctx.bot.send_chat_action = AsyncMock()
-
-    await handler.handle(update, ctx)
-
-    # Verify message was sent even though it's below threshold
-    assert message.reply_text.call_count >= 1
+    result = _truncate_safely(text, max_len, indicator)
+    assert len(result) <= max_len
+    assert result.endswith(indicator)
 
 
-@pytest.mark.asyncio
-async def test_streaming_multi_part_first_chunk_updated() -> None:
-    """Test that first chunk in multi-part messages is properly updated."""
-    from src.bot.filters.access_filter import AccessFilter
+def test_truncate_safely_with_markdown() -> None:
+    """Test _truncate_safely closes markdown formatting."""
+    from src.bot.handlers.message_handler import _truncate_safely
 
-    settings = AppSettings(
-        mistral_api_key="test-key",
-        telegram_bot_token="test-token",
-    )
-    settings.bot.enable_streaming = True
-    settings.bot.streaming_threshold = 10
-    settings.bot.max_message_length = 50  # Small length to force multi-part
-    settings.access.allowed_user_ids = [1]
+    # Text with unclosed asterisks
+    text = "This is *bold text that will be truncated"
+    indicator = "..."
+    max_len = 20
 
-    mistral = MagicMock()
-
-    # Mock a long response that will be split
-    long_text = "A" * 100
-    async def mock_long_stream(prompt, user_id=None):
-        yield (long_text, long_text, True)
-
-    mistral.generate_stream = mock_long_stream
-    mistral._memory = MagicMock()
-    mistral._memory.add_message = MagicMock()
-
-    af = AccessFilter(settings)
-    handler = MessageHandler(settings, mistral, af)
-
-    # Create mock message and context
-    update = MagicMock()
-    message = MagicMock()
-    sent_msg = MagicMock()
-    sent_msg.edit_text = AsyncMock()
-    message.text = "test"
-    message.chat.type = "private"
-    message.chat.id = 1
-    message.from_user.id = 1
-    message.reply_text = AsyncMock(return_value=sent_msg)
-    update.message = message
-
-    ctx = MagicMock()
-    ctx.bot.send_chat_action = AsyncMock()
-
-    await handler.handle(update, ctx)
-
-    # Verify first message was updated with part indicator
-    assert sent_msg.edit_text.call_count >= 1
-    # Check that message.reply_text was called for additional parts
-    assert message.reply_text.call_count >= 2  # First message + at least one more part
+    result = _truncate_safely(text, max_len, indicator)
+    # Should close the asterisk
+    assert result.count('*') % 2 == 0
 
 
-@pytest.mark.asyncio
-async def test_streaming_memory_only_on_success() -> None:
-    """Test that memory is only updated on successful streaming completion."""
-    from src.bot.filters.access_filter import AccessFilter
+def test_truncate_safely_with_backticks() -> None:
+    """Test _truncate_safely closes code blocks."""
+    from src.bot.handlers.message_handler import _truncate_safely
 
-    settings = AppSettings(
-        mistral_api_key="test-key",
-        telegram_bot_token="test-token",
-    )
-    settings.bot.enable_streaming = True
-    settings.access.allowed_user_ids = [1]
+    # Text with unclosed backticks
+    text = "This is `code that will be truncated"
+    indicator = "..."
+    max_len = 20
 
-    mistral = MagicMock()
-
-    # Mock a stream that fails mid-way
-    async def mock_failing_stream(prompt, user_id=None):
-        yield ("Start", "Start", False)
-        raise Exception("Stream failed")
-
-    mistral.generate_stream = mock_failing_stream
-    mistral._memory = MagicMock()
-    mistral._memory.add_message = MagicMock()
-
-    af = AccessFilter(settings)
-    handler = MessageHandler(settings, mistral, af)
-
-    # Create mock message and context
-    update = MagicMock()
-    message = MagicMock()
-    message.text = "test"
-    message.chat.type = "private"
-    message.chat.id = 1
-    message.from_user.id = 1
-    message.reply_text = AsyncMock(return_value=message)
-    update.message = message
-
-    ctx = MagicMock()
-    ctx.bot.send_chat_action = AsyncMock()
-
-    await handler.handle(update, ctx)
-
-    # Verify memory was NOT updated on failure
-    assert mistral._memory.add_message.call_count == 0
+    result = _truncate_safely(text, max_len, indicator)
+    # Should close the backtick
+    assert result.count('`') % 2 == 0

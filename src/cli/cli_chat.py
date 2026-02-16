@@ -41,6 +41,8 @@ class CLIChat:
         web_search_status = 'enabled' if self.settings.mistral.enable_web_search else 'disabled'
         print(f"  Web search: {web_search_status}")
         print(f"  History size: {self.settings.mistral.conversation_history_size} messages")
+        streaming_status = 'enabled' if self.settings.bot.enable_streaming else 'disabled'
+        print(f"  Streaming: {streaming_status}")
         if self.settings.mistral.system_prompt:
             print(f"  System prompt: {self.settings.mistral.system_prompt[:50]}...")
         print("-" * 70)
@@ -107,22 +109,45 @@ class CLIChat:
             # Add user message to history
             self.client._memory.add_message(self.user_id, "user", user_input)
 
-            # Generate response
-            response = await self.client.generate(user_input, user_id=self.user_id)
+            # Check if streaming is enabled
+            if self.settings.bot.enable_streaming:
+                # Use streaming mode
+                print("\n🤖 Bot: ", end='', flush=True)
+                accumulated_content = ""
 
-            # Extract content and metadata
-            response_text = response.content
-            metadata = {
-                "model": response.model,
-                "input_tokens": response.input_tokens,
-                "output_tokens": response.output_tokens,
-                "total_tokens": response.total_tokens,
-            }
+                async for chunk_content, full_content, is_final in self.client.generate_stream(
+                    user_input, user_id=self.user_id
+                ):
+                    accumulated_content = full_content
+                    if chunk_content:
+                        # Print new content as it arrives
+                        print(chunk_content, end='', flush=True)
 
-            # Add assistant response to history
-            self.client._memory.add_message(self.user_id, "assistant", response_text)
+                print()  # New line after streaming completes
 
-            return response_text, metadata
+                # Add assistant response to history
+                self.client._memory.add_message(self.user_id, "assistant", accumulated_content)
+
+                # Return None for metadata since we don't have it in final chunk yet
+                # We could enhance this to extract metadata from the final chunk
+                return accumulated_content, None
+            else:
+                # Use non-streaming mode (original behavior)
+                response = await self.client.generate(user_input, user_id=self.user_id)
+
+                # Extract content and metadata
+                response_text = response.content
+                metadata = {
+                    "model": response.model,
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "total_tokens": response.total_tokens,
+                }
+
+                # Add assistant response to history
+                self.client._memory.add_message(self.user_id, "assistant", response_text)
+
+                return response_text, metadata
 
         except Exception as e:
             logger.exception("Error generating response")
@@ -151,17 +176,22 @@ class CLIChat:
 
                 if isinstance(result, tuple):
                     response, metadata = result
-                    if response:
-                        print(f"\n🤖 Bot: {response}")
-                        if metadata:
-                            # Format token statistics in one line with emoji
-                            tokens_info = (
-                                f"  ⚡ {metadata['model']} "
-                                f"| input: {metadata['input_tokens']} "
-                                f"| output: {metadata['output_tokens']} "
-                                f"| total: {metadata['total_tokens']}"
-                            )
-                            print(tokens_info)
+                    # Only show metadata if we have it (non-streaming mode)
+                    if response and metadata:
+                        # Response already printed in streaming mode
+                        if not self.settings.bot.enable_streaming:
+                            print(f"\n🤖 Bot: {response}")
+                        # Format token statistics in one line with emoji
+                        tokens_info = (
+                            f"  ⚡ {metadata['model']} "
+                            f"| input: {metadata['input_tokens']} "
+                            f"| output: {metadata['output_tokens']} "
+                            f"| total: {metadata['total_tokens']}"
+                        )
+                        print(tokens_info)
+                    elif response and not metadata:
+                        # Streaming mode - response already printed, no metadata
+                        pass
                 else:
                     # Fallback for string responses (shouldn't happen now)
                     if result:
