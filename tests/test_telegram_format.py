@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from src.utils.telegram_format import (
     escape_telegram_markdown,
     markdown_to_telegram,
