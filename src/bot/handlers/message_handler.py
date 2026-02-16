@@ -16,6 +16,7 @@ from src.api.mistral_client import MistralClient
 from src.api.reaction_analyzer import ReactionAnalyzer
 from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
+from src.utils.telegram_format import markdown_to_telegram
 
 logger = logging.getLogger(__name__)
 
@@ -629,7 +630,10 @@ class MessageHandler:
 def _normalize_markdown_for_telegram(text: str) -> str:
     """Convert markdown to Telegram-compatible format.
 
-    Telegram supports: *bold*, _italic_, __underline__, ~strikethrough~, `code`
+    This is a legacy wrapper that delegates to the new utility function.
+    Use src.utils.telegram_format.markdown_to_telegram directly in new code.
+
+    Telegram supports: *bold*, _italic*, __underline__, ~strikethrough~, `code`
     But NOT: **bold** (double asterisks), ### headers, - lists (shows as-is)
 
     Conversions:
@@ -638,18 +642,9 @@ def _normalize_markdown_for_telegram(text: str) -> str:
     - ## Heading → *Heading* (bold)
     - **text** → *text* (double asterisks to single)
     - - list item → • list item (for better formatting)
+    - Special characters are properly escaped to prevent parse errors
     """
-
-    # Convert markdown headers (####, ###, ##) to bold
-    text = re.sub(r'^#{2,4}\s+(.+?)$', r'*\1*', text, flags=re.MULTILINE)
-
-    # Convert double asterisks to single (markdown bold to Telegram bold)
-    text = text.replace('**', '*')
-
-    # Convert markdown dashes to bullet points for better readability
-    text = re.sub(r'^-\s+', '• ', text, flags=re.MULTILINE)
-
-    return text
+    return markdown_to_telegram(text)
 
 
 def _split_text(text: str, max_length: int) -> list[str]:
