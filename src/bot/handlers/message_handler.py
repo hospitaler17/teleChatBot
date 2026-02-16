@@ -109,11 +109,7 @@ async def _safe_edit_message(
             if "message is not modified" in error_msg:
                 # Content unchanged, consider it a success
                 return True
-            elif (
-                "can't parse entities" in error_msg
-                or "can't parse" in error_msg
-                or "parse error" in error_msg
-            ):
+            elif "can't parse" in error_msg or "parse error" in error_msg:
                 # Try again without parse mode (preserve retry count)
                 if parse_mode is not None and allow_parse_retry:
                     logger.warning(f"Markdown parse error, retrying as plain text: {e}")
@@ -173,12 +169,7 @@ async def _safe_send_message(
         except BadRequest as e:
             # Try again without parse mode if it's a parse error
             error_msg = str(e).lower()
-            if (
-                "can't parse entities" in error_msg
-                or "can't parse message text" in error_msg
-                or "can't parse caption" in error_msg
-                or "parse error" in error_msg
-            ):
+            if "can't parse" in error_msg or "parse error" in error_msg:
                 if parse_mode is not None and allow_parse_retry:
                     logger.warning(f"Markdown parse error, retrying as plain text: {e}")
                     return await _safe_send_message(
