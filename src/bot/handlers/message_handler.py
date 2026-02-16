@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
@@ -98,8 +99,8 @@ class MessageHandler:
         formatted_message = f"[{sender_name}]: {prompt}"
 
         # Try to add a reaction to the message (if enabled and conditions met)
-        # This runs regardless of whether we respond to the message
-        await self._try_add_reaction(message, prompt)
+        # This runs in background to avoid blocking message processing
+        asyncio.create_task(self._try_add_reaction(message, prompt))
 
         # Only respond if message is directly addressed to the bot
         if not is_direct_request:

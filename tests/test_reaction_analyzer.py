@@ -81,12 +81,32 @@ def test_should_analyze_probability(mock_random: MagicMock, settings: AppSetting
     settings.reactions.probability = 0.3
     analyzer = ReactionAnalyzer(settings)
 
-    # Mock random to return value above threshold
-    mock_random.return_value = 0.5  # > 0.3
+    # Mock random to return value above threshold (>= 0.3)
+    mock_random.return_value = 0.5  # >= 0.3, should NOT analyze
     assert not analyzer.should_analyze("This is a test message")
 
-    # Mock random to return value below threshold
-    mock_random.return_value = 0.2  # < 0.3
+    # Mock random to return value below threshold (< 0.3)
+    mock_random.return_value = 0.2  # < 0.3, should analyze
+    assert analyzer.should_analyze("This is a test message")
+
+
+@patch("src.api.reaction_analyzer.random.random")
+def test_should_analyze_probability_edge_cases(
+    mock_random: MagicMock, settings: AppSettings
+) -> None:
+    """should_analyze() handles edge cases: 0.0 = never, 1.0 = always."""
+    analyzer = ReactionAnalyzer(settings)
+
+    # Test probability = 0.0 should never analyze
+    settings.reactions.probability = 0.0
+    mock_random.return_value = 0.0  # Even at 0.0, should not analyze
+    assert not analyzer.should_analyze("This is a test message")
+
+    # Test probability = 1.0 should always analyze
+    settings.reactions.probability = 1.0
+    mock_random.return_value = 0.0  # Any value < 1.0 should analyze
+    assert analyzer.should_analyze("This is a test message")
+    mock_random.return_value = 0.999  # Still < 1.0, should analyze
     assert analyzer.should_analyze("This is a test message")
 
 

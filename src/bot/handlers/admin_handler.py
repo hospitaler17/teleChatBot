@@ -119,9 +119,13 @@ class AdminHandler:
             return
         users = self._settings.access.allowed_user_ids or ["(пусто)"]
         chats = self._settings.access.allowed_chat_ids or ["(пусто)"]
-        reactions_status = (
-            "Включены ✅" if self._settings.access.reactions_enabled else "Выключены ❌"
-        )
+
+        # Show effective reactions status (both config and runtime must be enabled)
+        config_enabled = self._settings.reactions.enabled
+        runtime_enabled = self._settings.access.reactions_enabled
+        effective = config_enabled and runtime_enabled
+        reactions_status = "Включены ✅" if effective else "Выключены ❌"
+
         text = (
             "📋 *Текущие настройки доступа:*\n\n"
             f"*Пользователи:*\n{_format_list(users)}\n\n"
@@ -153,10 +157,18 @@ class AdminHandler:
         if not self._is_admin(update):
             await self._reject(update)
             return
-        status = "включены ✅" if self._settings.access.reactions_enabled else "выключены ❌"
+
+        # Check both config and runtime flags
+        config_enabled = self._settings.reactions.enabled
+        runtime_enabled = self._settings.access.reactions_enabled
+        effective = config_enabled and runtime_enabled
+
+        status = "включены ✅" if effective else "выключены ❌"
         text = (
             f"*Статус реакций:* {status}\n\n"
             f"*Настройки:*\n"
+            f"• Конфигурация: {'включена' if config_enabled else 'выключена'}\n"
+            f"• Рантайм-переключатель: {'включён' if runtime_enabled else 'выключен'}\n"
             f"• Модель: `{self._settings.reactions.model}`\n"
             f"• Вероятность: {self._settings.reactions.probability * 100:.0f}%\n"
             f"• Мин. слов: {self._settings.reactions.min_words}\n"

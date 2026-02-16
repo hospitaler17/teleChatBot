@@ -47,7 +47,7 @@ class ReactionAnalyzer:
             return False
 
         # Check probability
-        if random.random() > self._settings.reactions.probability:
+        if random.random() >= self._settings.reactions.probability:
             logger.debug("Message skipped due to probability threshold")
             return False
 
