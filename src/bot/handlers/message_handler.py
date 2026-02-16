@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
 
 from telegram import Message, Update
 from telegram.constants import ChatAction
-from telegram.error import BadRequest
+from telegram.error import BadRequest, RetryAfter
 from telegram.ext import ContextTypes
 
 from src.api.mistral_client import MistralClient
@@ -61,6 +62,119 @@ def _truncate_safely(text: str, max_len: int, indicator: str) -> str:
         truncated += '`'
 
     return truncated + indicator_with_newlines
+
+
+async def _safe_edit_message(
+    message: Message,
+    text: str,
+    parse_mode: str | None = "Markdown",
+    max_retries: int = 3
+) -> bool:
+    """Safely edit a message with retry logic for rate limiting.
+
+    Args:
+        message: The message to edit
+        text: New text content
+        parse_mode: Parse mode for formatting (default: "Markdown")
+        max_retries: Maximum number of retry attempts (default: 3)
+
+    Returns:
+        True if edit was successful, False otherwise
+    """
+    for attempt in range(max_retries):
+        try:
+            await message.edit_text(text, parse_mode=parse_mode)
+            return True
+        except RetryAfter as e:
+            if attempt < max_retries - 1:
+                # Wait for the specified time plus a small buffer
+                wait_time = e.retry_after + 0.5
+                logger.warning(
+                    f"Rate limit exceeded, waiting {wait_time}s before retry "
+                    f"(attempt {attempt + 1}/{max_retries})"
+                )
+                await asyncio.sleep(wait_time)
+            else:
+                # Max retries exceeded
+                logger.error(
+                    f"Failed to edit message after {max_retries} attempts "
+                    "due to rate limiting"
+                )
+                return False
+        except BadRequest as e:
+            # Handle other BadRequest errors (not rate limiting)
+            error_msg = str(e).lower()
+            if "message is not modified" in error_msg:
+                # Content unchanged, consider it a success
+                return True
+            elif "can't parse entities" in error_msg or "parse" in error_msg:
+                # Try again without parse mode
+                if parse_mode is not None:
+                    logger.warning(f"Markdown parse error, retrying as plain text: {e}")
+                    return await _safe_edit_message(message, text, parse_mode=None, max_retries=1)
+            # For other BadRequest errors, fail
+            logger.warning(f"Failed to edit message: {e}")
+            return False
+        except Exception as e:
+            # Unexpected error
+            logger.error(f"Unexpected error while editing message: {e}")
+            return False
+
+    return False
+
+
+async def _safe_send_message(
+    message: Message,
+    text: str,
+    parse_mode: str | None = "Markdown",
+    max_retries: int = 3
+) -> Message | None:
+    """Safely send a message with retry logic for rate limiting.
+
+    Args:
+        message: The original message to reply to
+        text: Text content to send
+        parse_mode: Parse mode for formatting (default: "Markdown")
+        max_retries: Maximum number of retry attempts (default: 3)
+
+    Returns:
+        The sent message, or None if failed
+    """
+    for attempt in range(max_retries):
+        try:
+            return await message.reply_text(text, parse_mode=parse_mode)
+        except RetryAfter as e:
+            if attempt < max_retries - 1:
+                # Wait for the specified time plus a small buffer
+                wait_time = e.retry_after + 0.5
+                logger.warning(
+                    f"Rate limit exceeded, waiting {wait_time}s before retry "
+                    f"(attempt {attempt + 1}/{max_retries})"
+                )
+                await asyncio.sleep(wait_time)
+            else:
+                # Max retries exceeded
+                logger.error(
+                    f"Failed to send message after {max_retries} attempts "
+                    "due to rate limiting"
+                )
+                return None
+        except BadRequest as e:
+            # Try again without parse mode if it's a parse error
+            error_msg = str(e).lower()
+            if "can't parse entities" in error_msg or "parse" in error_msg:
+                if parse_mode is not None:
+                    logger.warning(f"Markdown parse error, retrying as plain text: {e}")
+                    return await _safe_send_message(message, text, parse_mode=None, max_retries=1)
+            # For other BadRequest errors, fail
+            logger.warning(f"Failed to send message: {e}")
+            return None
+        except Exception as e:
+            # Unexpected error
+            logger.error(f"Unexpected error while sending message: {e}")
+            return None
+
+    return None
 
 
 class MessageHandler:
@@ -232,37 +346,20 @@ class MessageHandler:
                             normalized, max_len, MSG_STREAMING_INDICATOR
                         )
 
-                    try:
-                        if sent_message is None:
-                            # Send initial message
-                            sent_message = await message.reply_text(
-                                display_text, parse_mode="Markdown"
-                            )
-                        else:
-                            # Update existing message
-                            await sent_message.edit_text(
-                                display_text, parse_mode="Markdown"
-                            )
-                        last_update_time = current_time
-                    except BadRequest as e:
-                        error_msg = str(e).lower()
-                        # Handle different BadRequest scenarios
-                        if "message is not modified" in error_msg:
-                            # Content unchanged, skip update
-                            pass
-                        elif "can't parse entities" in error_msg or "parse" in error_msg:
-                            # Markdown parse error, retry without parse_mode
-                            logger.warning(f"Markdown parse error, retrying as plain text: {e}")
-                            try:
-                                if sent_message is None:
-                                    sent_message = await message.reply_text(display_text)
-                                else:
-                                    await sent_message.edit_text(display_text)
-                                last_update_time = current_time
-                            except Exception as retry_error:
-                                logger.error(f"Failed to send as plain text: {retry_error}")
-                        else:
-                            logger.warning(f"Failed to update message: {e}")
+                    if sent_message is None:
+                        # Send initial message
+                        sent_message = await _safe_send_message(
+                            message, display_text, parse_mode="Markdown"
+                        )
+                        if sent_message:
+                            last_update_time = current_time
+                    else:
+                        # Update existing message
+                        success = await _safe_edit_message(
+                            sent_message, display_text, parse_mode="Markdown"
+                        )
+                        if success:
+                            last_update_time = current_time
 
             # Streaming completed successfully
             streaming_successful = True
@@ -285,24 +382,14 @@ class MessageHandler:
 
                     if sent_message:
                         # Update the first message with proper prefix
-                        try:
-                            await sent_message.edit_text(
-                                first_chunk_text, parse_mode="Markdown"
-                            )
-                        except BadRequest as e:
-                            if "can't parse entities" in str(e).lower():
-                                # Retry as plain text
-                                await sent_message.edit_text(first_chunk_text)
-                            elif "message is not modified" not in str(e).lower():
-                                logger.warning(f"Failed to update first chunk: {e}")
+                        await _safe_edit_message(
+                            sent_message, first_chunk_text, parse_mode="Markdown"
+                        )
                     else:
                         # First message was never sent (short response), send it now
-                        try:
-                            sent_message = await message.reply_text(
-                                first_chunk_text, parse_mode="Markdown"
-                            )
-                        except BadRequest:
-                            sent_message = await message.reply_text(first_chunk_text)
+                        sent_message = await _safe_send_message(
+                            message, first_chunk_text, parse_mode="Markdown"
+                        )
 
                     # Send remaining chunks
                     for i, chunk in enumerate(chunks[1:], start=2):
@@ -310,32 +397,18 @@ class MessageHandler:
                         chunk_text = (
                             f"({MSG_MULTI_PART_PREFIX} {i}/{len(chunks)})\n\n{normalized}"
                         )
-                        try:
-                            await message.reply_text(chunk_text, parse_mode="Markdown")
-                        except BadRequest:
-                            # Fallback to plain text
-                            await message.reply_text(chunk_text)
+                        await _safe_send_message(message, chunk_text, parse_mode="Markdown")
                 else:
                     # Single message: ensure it's sent or updated properly
                     normalized = _normalize_markdown_for_telegram(chunks[0])
                     if sent_message:
                         # Update to remove streaming indicator if present
-                        try:
-                            await sent_message.edit_text(normalized, parse_mode="Markdown")
-                        except BadRequest as e:
-                            error_msg = str(e).lower()
-                            if "can't parse entities" in error_msg:
-                                await sent_message.edit_text(normalized)
-                            elif "message is not modified" not in error_msg:
-                                logger.warning(f"Failed to update final message: {e}")
+                        await _safe_edit_message(sent_message, normalized, parse_mode="Markdown")
                     else:
                         # Short response that never triggered threshold, send now
-                        try:
-                            sent_message = await message.reply_text(
-                                normalized, parse_mode="Markdown"
-                            )
-                        except BadRequest:
-                            sent_message = await message.reply_text(normalized)
+                        sent_message = await _safe_send_message(
+                            message, normalized, parse_mode="Markdown"
+                        )
 
                 # Store in memory only after successful completion
                 if streaming_successful and context_id is not None:
@@ -352,12 +425,12 @@ class MessageHandler:
             logger.exception("Failed during streaming response")
             # Send error message
             if sent_message is None:
-                await message.reply_text(MSG_ERROR)
+                await _safe_send_message(message, MSG_ERROR, parse_mode=None)
             else:
-                try:
-                    await sent_message.edit_text(MSG_ERROR, parse_mode=None)
-                except Exception:
-                    await message.reply_text(MSG_ERROR)
+                # Try to edit, if that fails, send a new message
+                success = await _safe_edit_message(sent_message, MSG_ERROR, parse_mode=None)
+                if not success:
+                    await _safe_send_message(message, MSG_ERROR, parse_mode=None)
 
     # ------------------------------------------------------------------
 
