@@ -47,6 +47,9 @@ def create_bot(settings: AppSettings) -> Application:
     app.add_handler(TGCommandHandler("admin_add_chat", admin.add_chat))
     app.add_handler(TGCommandHandler("admin_remove_chat", admin.remove_chat))
     app.add_handler(TGCommandHandler("admin_list", admin.list_access))
+    app.add_handler(TGCommandHandler("admin_reactions_on", admin.reactions_on))
+    app.add_handler(TGCommandHandler("admin_reactions_off", admin.reactions_off))
+    app.add_handler(TGCommandHandler("admin_reactions_status", admin.reactions_status))
 
     # Text messages and other message types (lowest priority)
     # Handles: text, forwarded messages, replies, media with captions

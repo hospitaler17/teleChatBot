@@ -189,3 +189,71 @@ class TestAdminHandler:
         call_text = update.message.reply_text.call_args[0][0]
         assert "10" in call_text
         assert "20" in call_text
+
+    @pytest.mark.asyncio
+    async def test_reactions_on_as_admin(self, tmp_path) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        s.access.reactions_enabled = False
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        with patch("src.config.settings.CONFIG_DIR", tmp_path):
+            await handler.reactions_on(update, ctx)
+        assert s.access.reactions_enabled is True
+        update.message.reply_text.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_reactions_off_as_admin(self, tmp_path) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        s.access.reactions_enabled = True
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        with patch("src.config.settings.CONFIG_DIR", tmp_path):
+            await handler.reactions_off(update, ctx)
+        assert s.access.reactions_enabled is False
+        update.message.reply_text.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_reactions_status_as_admin(self) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        s.access.reactions_enabled = True
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        await handler.reactions_status(update, ctx)
+        update.message.reply_text.assert_awaited_once()
+        call_text = update.message.reply_text.call_args[0][0]
+        # Should show status information
+        assert "Статус реакций" in call_text
+
+    @pytest.mark.asyncio
+    async def test_reactions_commands_rejected_for_non_admin(self) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=99)  # Non-admin user
+        ctx = MagicMock()
+
+        # Test all three commands are rejected
+        await handler.reactions_on(update, ctx)
+        await handler.reactions_off(update, ctx)
+        await handler.reactions_status(update, ctx)
+
+        # All should have rejected the user
+        assert update.message.reply_text.call_count == 3

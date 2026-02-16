@@ -54,3 +54,26 @@ bot:
 admin:
   # Telegram user IDs with admin privileges (can manage bot via commands)
   user_ids: []
+
+# Reaction settings - automatically react to user messages based on sentiment
+reactions:
+  # Enable or disable the reaction feature (can be toggled at runtime via admin command)
+  enabled: false
+  # Model to use for sentiment analysis (recommend fast model like mistral-small-latest)
+  model: "mistral-small-latest"
+  # System prompt for mood analysis - instructs model how to classify sentiment
+  system_prompt: "Analyze the sentiment and mood of the user's message. Respond with ONLY ONE word from this list: positive, negative, neutral, funny, sad, angry, excited, thoughtful. Do not provide explanations, just the mood word."
+  # Probability (0.0-1.0) of analyzing a message - e.g., 0.3 = 30% chance
+  probability: 0.3
+  # Minimum number of words in a message to trigger analysis
+  min_words: 5
+  # Mapping of mood names to emoji reactions
+  moods:
+    positive: "👍"
+    negative: "👎"
+    neutral: "🤔"
+    funny: "😄"
+    sad: "😢"
+    angry: "😠"
+    excited: "🎉"
+    thoughtful: "💭"

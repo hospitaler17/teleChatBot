@@ -23,6 +23,9 @@ class AdminHandler:
     /admin_add_chat <chat_id>     – add a chat to the allowed list
     /admin_remove_chat <chat_id>  – remove a chat from the allowed list
     /admin_list                   – show current allowed users and chats
+    /admin_reactions_on           – enable automatic message reactions
+    /admin_reactions_off          – disable automatic message reactions
+    /admin_reactions_status       – show reactions status and configuration
     """
 
     def __init__(self, settings: AppSettings, access_filter: AccessFilter) -> None:
@@ -116,10 +119,60 @@ class AdminHandler:
             return
         users = self._settings.access.allowed_user_ids or ["(пусто)"]
         chats = self._settings.access.allowed_chat_ids or ["(пусто)"]
+
+        # Show effective reactions status (both config and runtime must be enabled)
+        config_enabled = self._settings.reactions.enabled
+        runtime_enabled = self._settings.access.reactions_enabled
+        effective = config_enabled and runtime_enabled
+        reactions_status = "Включены ✅" if effective else "Выключены ❌"
+
         text = (
             "📋 *Текущие настройки доступа:*\n\n"
             f"*Пользователи:*\n{_format_list(users)}\n\n"
-            f"*Чаты:*\n{_format_list(chats)}"
+            f"*Чаты:*\n{_format_list(chats)}\n\n"
+            f"*Реакции:* {reactions_status}"
+        )
+        await update.message.reply_text(text, parse_mode="Markdown")
+
+    async def reactions_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_reactions_on"""
+        if not self._is_admin(update):
+            await self._reject(update)
+            return
+        self._settings.access.reactions_enabled = True
+        self._settings.save_access()
+        await update.message.reply_text("✅ Реакции на сообщения включены.")
+
+    async def reactions_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_reactions_off"""
+        if not self._is_admin(update):
+            await self._reject(update)
+            return
+        self._settings.access.reactions_enabled = False
+        self._settings.save_access()
+        await update.message.reply_text("✅ Реакции на сообщения выключены.")
+
+    async def reactions_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_reactions_status"""
+        if not self._is_admin(update):
+            await self._reject(update)
+            return
+
+        # Check both config and runtime flags
+        config_enabled = self._settings.reactions.enabled
+        runtime_enabled = self._settings.access.reactions_enabled
+        effective = config_enabled and runtime_enabled
+
+        status = "включены ✅" if effective else "выключены ❌"
+        text = (
+            f"*Статус реакций:* {status}\n\n"
+            f"*Настройки:*\n"
+            f"• Конфигурация: {'включена' if config_enabled else 'выключена'}\n"
+            f"• Рантайм-переключатель: {'включён' if runtime_enabled else 'выключен'}\n"
+            f"• Модель: `{self._settings.reactions.model}`\n"
+            f"• Вероятность: {self._settings.reactions.probability * 100:.0f}%\n"
+            f"• Мин. слов: {self._settings.reactions.min_words}\n"
+            f"• Настроения: {len(self._settings.reactions.moods)}"
         )
         await update.message.reply_text(text, parse_mode="Markdown")
 
