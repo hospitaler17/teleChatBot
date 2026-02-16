@@ -353,7 +353,7 @@ def test_should_use_web_search_with_explicit_search_requests(
 ) -> None:
     """_should_use_web_search() should return True for explicit search requests."""
     client = MistralClient(settings)
-    
+
     # Russian explicit search requests
     assert client._should_use_web_search("поищи ка информацию в сети")
     assert client._should_use_web_search("найди информацию о Python")
@@ -363,7 +363,7 @@ def test_should_use_web_search_with_explicit_search_requests(
     assert client._should_use_web_search("узнай что такое")
     assert client._should_use_web_search("посмотри в интернете")
     assert client._should_use_web_search("проверь онлайн")
-    
+
     # English explicit search requests
     assert client._should_use_web_search("search for information")
     assert client._should_use_web_search("find articles about AI")
@@ -379,7 +379,7 @@ def test_should_use_web_search_with_time_sensitive_queries(
 ) -> None:
     """_should_use_web_search() should return True for time-sensitive queries."""
     client = MistralClient(settings)
-    
+
     # Time-sensitive queries
     assert client._should_use_web_search("какие новости сегодня?")
     assert client._should_use_web_search("текущая погода")
@@ -397,7 +397,7 @@ def test_should_use_web_search_without_search_keywords(
 ) -> None:
     """_should_use_web_search() should return False for queries without search keywords."""
     client = MistralClient(settings)
-    
+
     # General knowledge questions that don't need web search
     assert not client._should_use_web_search("что такое Python?")
     assert not client._should_use_web_search("объясни алгоритм сортировки")
