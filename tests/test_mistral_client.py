@@ -345,3 +345,75 @@ async def test_generate_non_string_content(mock_mistral: MagicMock, settings: Ap
     client = MistralClient(settings)
     with pytest.raises(TypeError, match="non-string"):
         await client.generate("Hi")
+
+
+@patch("src.api.mistral_client.Mistral")
+def test_should_use_web_search_with_explicit_search_requests(
+    mock_mistral: MagicMock, settings: AppSettings
+) -> None:
+    """_should_use_web_search() should return True for explicit search requests."""
+    client = MistralClient(settings)
+
+    # Russian explicit search requests
+    assert client._should_use_web_search("поищи ка информацию в сети")
+    assert client._should_use_web_search("найди информацию о Python")
+    assert client._should_use_web_search("поиск новостей")
+    assert client._should_use_web_search("искать статьи")
+    assert client._should_use_web_search("погугли это")
+    assert client._should_use_web_search("узнай что такое")
+    assert client._should_use_web_search("посмотри в интернете")
+    assert client._should_use_web_search("проверь онлайн")
+
+    # English explicit search requests
+    assert client._should_use_web_search("search for information")
+    assert client._should_use_web_search("find information about AI")
+    assert client._should_use_web_search("find articles about AI")
+    assert client._should_use_web_search("look up recent news")
+    assert client._should_use_web_search("google this")
+    assert client._should_use_web_search("check online")
+    assert client._should_use_web_search("search online")
+    assert client._should_use_web_search("search the internet")
+
+
+@patch("src.api.mistral_client.Mistral")
+def test_should_use_web_search_with_time_sensitive_queries(
+    mock_mistral: MagicMock, settings: AppSettings
+) -> None:
+    """_should_use_web_search() should return True for time-sensitive queries."""
+    client = MistralClient(settings)
+
+    # Time-sensitive queries
+    assert client._should_use_web_search("какие новости сегодня?")
+    assert client._should_use_web_search("текущая погода")
+    assert client._should_use_web_search("последние события")
+    assert client._should_use_web_search("что сейчас происходит")
+    assert client._should_use_web_search("актуальный курс доллара")
+    assert client._should_use_web_search("latest news")
+    assert client._should_use_web_search("current weather")
+    assert client._should_use_web_search("what happened today")
+
+
+@patch("src.api.mistral_client.Mistral")
+def test_should_use_web_search_without_search_keywords(
+    mock_mistral: MagicMock, settings: AppSettings
+) -> None:
+    """_should_use_web_search() should return False for queries without search keywords."""
+    client = MistralClient(settings)
+
+    # General knowledge questions that don't need web search
+    assert not client._should_use_web_search("что такое Python?")
+    assert not client._should_use_web_search("объясни алгоритм сортировки")
+    assert not client._should_use_web_search("напиши функцию")
+    assert not client._should_use_web_search("расскажи про квантовую физику")
+    assert not client._should_use_web_search("What is machine learning?")
+    assert not client._should_use_web_search("Write a poem")
+    assert not client._should_use_web_search("Tell me about history")
+
+    # Edge cases that contain broad keywords but should not trigger web search.
+    # These help ensure we don't introduce unnecessary web searches (false positives).
+    assert not client._should_use_web_search("Can you check this code for errors?")
+    assert not client._should_use_web_search("I find Python very interesting")
+    assert not client._should_use_web_search("The system is online now")
+    assert not client._should_use_web_search("посмотри на этот код")
+    assert not client._should_use_web_search("проверь этот код")
+    assert not client._should_use_web_search("I can't find my keys")

@@ -361,12 +361,19 @@ class MistralClient:
         """
         Determine if web search should be used for this prompt.
 
-        Uses keywords to detect queries that likely need current information.
+        Uses keywords to detect queries that likely need current information
+        or explicit search requests.
+
+        Uses simple substring matching to prioritize recall over precision:
+        some false positives are acceptable to ensure explicit search
+        requests are not missed and to maintain broad coverage of query
+        variations.
         """
         prompt_lower = prompt.lower()
 
-        # Keywords that suggest need for current information
+        # Keywords that suggest need for current information or explicit search requests
         search_keywords = [
+            # Time-sensitive queries
             "новост",
             "сегодня",
             "сейчас",
@@ -390,6 +397,30 @@ class MistralClient:
             "где",
             "what happened",
             "что случилось",
+            # Explicit search requests
+            # Using more specific phrases to reduce false positives
+            "поиск",
+            "поищи",
+            "найди",
+            "найти",
+            "искать",
+            "погугли",
+            "узнай",
+            "посмотри в интернете",
+            "посмотри в сети",
+            "проверь онлайн",
+            "интернет",
+            "в сети",
+            "онлайн",
+            "search",
+            "find information",
+            "find info",
+            "find articles",
+            "look up",
+            "google",
+            "check online",
+            "search online",
+            "internet",
         ]
 
         return any(keyword in prompt_lower for keyword in search_keywords)
