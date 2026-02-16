@@ -9,6 +9,7 @@ from typing import Any, Self
 import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from yaml.nodes import MappingNode
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,14 @@ class SafeLoaderWithDuplicateCheck(yaml.SafeLoader):
     pass
 
 
-def _construct_mapping_no_duplicates(loader: yaml.SafeLoader, node: yaml.Node) -> dict[Any, Any]:
+def _construct_mapping_no_duplicates(
+    loader: SafeLoaderWithDuplicateCheck, node: MappingNode
+) -> dict[Any, Any]:
     """Construct a mapping while checking for duplicate keys.
 
     Args:
         loader: The YAML loader instance
-        node: The YAML node to construct
+        node: The YAML mapping node to construct
 
     Returns:
         Constructed mapping dictionary
@@ -197,7 +200,19 @@ class AppSettings(BaseSettings):
         if config_path.exists():
             try:
                 with open(config_path, encoding="utf-8") as fh:
-                    yaml_data = yaml.load(fh, Loader=SafeLoaderWithDuplicateCheck) or {}
+                    loaded = yaml.load(fh, Loader=SafeLoaderWithDuplicateCheck)
+                if loaded is None:
+                    yaml_data = {}
+                elif isinstance(loaded, dict):
+                    yaml_data = loaded
+                else:
+                    error_msg = (
+                        f"Top-level YAML structure in {config_path} must be a mapping "
+                        f"(dictionary), but found {type(loaded).__name__}. "
+                        f"Please ensure config.yaml starts with key-value pairs, e.g. 'mistral:'."
+                    )
+                    logger.error(error_msg)
+                    raise yaml.YAMLError(error_msg)
                 logger.info("Loaded config from %s", config_path)
             except UnicodeDecodeError as e:
                 error_msg = (
@@ -230,7 +245,19 @@ class AppSettings(BaseSettings):
         if access_path.exists():
             try:
                 with open(access_path, encoding="utf-8") as fh:
-                    access_data = yaml.load(fh, Loader=SafeLoaderWithDuplicateCheck) or {}
+                    loaded_access = yaml.load(fh, Loader=SafeLoaderWithDuplicateCheck)
+                if loaded_access is None:
+                    access_data = {}
+                elif isinstance(loaded_access, dict):
+                    access_data = loaded_access
+                else:
+                    error_msg = (
+                        f"Top-level YAML structure in {access_path} must be a mapping "
+                        f"(dictionary), but found {type(loaded_access).__name__}. "
+                        f"Please ensure allowed_users.yaml starts with key-value pairs."
+                    )
+                    logger.error(error_msg)
+                    raise yaml.YAMLError(error_msg)
                 logger.info("Loaded access list from %s", access_path)
             except UnicodeDecodeError as e:
                 error_msg = (

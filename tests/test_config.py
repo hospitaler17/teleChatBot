@@ -188,3 +188,56 @@ def test_nested_duplicate_keys(tmp_path: Path) -> None:
     error_msg = str(exc_info.value)
     assert "duplicate" in error_msg.lower()
     assert "model" in error_msg.lower()
+
+
+def test_config_yaml_wrong_root_type_list(tmp_path: Path) -> None:
+    """AppSettings.load should raise YAMLError if config.yaml root is a list."""
+    config_yaml = tmp_path / "config.yaml"
+    # Create YAML with list at root instead of mapping
+    config_yaml.write_text(
+        textwrap.dedent("""\
+        - item1
+        - item2
+        - item3
+        """)
+    )
+
+    with pytest.raises(yaml.YAMLError) as exc_info:
+        AppSettings.load(config_dir=tmp_path)
+
+    error_msg = str(exc_info.value)
+    assert "mapping" in error_msg.lower() or "dictionary" in error_msg.lower()
+    assert "list" in error_msg.lower()
+
+
+def test_config_yaml_wrong_root_type_scalar(tmp_path: Path) -> None:
+    """AppSettings.load should raise YAMLError if config.yaml root is a scalar."""
+    config_yaml = tmp_path / "config.yaml"
+    # Create YAML with scalar at root instead of mapping
+    config_yaml.write_text("just a string")
+
+    with pytest.raises(yaml.YAMLError) as exc_info:
+        AppSettings.load(config_dir=tmp_path)
+
+    error_msg = str(exc_info.value)
+    assert "mapping" in error_msg.lower() or "dictionary" in error_msg.lower()
+    assert "str" in error_msg.lower()
+
+
+def test_access_yaml_wrong_root_type(tmp_path: Path) -> None:
+    """AppSettings.load should raise YAMLError if allowed_users.yaml root is not a dict."""
+    access_yaml = tmp_path / "allowed_users.yaml"
+    # Create YAML with list at root instead of mapping
+    access_yaml.write_text(
+        textwrap.dedent("""\
+        - user1
+        - user2
+        """)
+    )
+
+    with pytest.raises(yaml.YAMLError) as exc_info:
+        AppSettings.load(config_dir=tmp_path)
+
+    error_msg = str(exc_info.value)
+    assert "mapping" in error_msg.lower() or "dictionary" in error_msg.lower()
+    assert "list" in error_msg.lower()
