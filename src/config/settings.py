@@ -42,18 +42,24 @@ def _construct_mapping_no_duplicates(loader: yaml.SafeLoader, node: yaml.Node) -
     """
     loader.flatten_mapping(node)
     mapping: dict[Any, Any] = {}
+    key_positions: dict[Any, tuple[int, int]] = {}  # Track first occurrence position
 
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=False)
-        value = loader.construct_object(value_node, deep=False)
 
         if key in mapping:
+            first_line, first_col = key_positions[key]
             raise DuplicateKeyError(
                 f"Duplicate key '{key}' found at line {key_node.start_mark.line + 1}, "
                 f"column {key_node.start_mark.column + 1}. "
-                f"Previous occurrence at line {node.start_mark.line + 1}."
+                f"Previous occurrence at line {first_line}, column {first_col}."
             )
 
+        # Store the position of first occurrence
+        key_positions[key] = (key_node.start_mark.line + 1, key_node.start_mark.column + 1)
+
+        # Construct value with deep=True to check nested structures recursively
+        value = loader.construct_object(value_node, deep=True)
         mapping[key] = value
 
     return mapping
