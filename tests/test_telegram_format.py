@@ -58,7 +58,8 @@ class TestEscapeTelegramMarkdown:
         # my_var should be escaped (not in code/link)
         assert "my\\_var" in result
         # code_block should NOT be escaped (inside backticks)
-        assert "`code_block`" in result or "`code\\_block`" not in result
+        assert "`code_block`" in result
+        assert "`code\\_block`" not in result
         # link should be preserved
         assert "[link](url)" in result
         # other_var should be escaped
@@ -278,3 +279,27 @@ Use it like: result = calculate_sum(1, 2)"""
         result = markdown_to_telegram(text)
         # First underscore might be italic, others should be escaped
         assert "\\_" in result or "_" in result
+
+    def test_unpaired_asterisk_escaping(self) -> None:
+        """Test that unpaired asterisks are escaped."""
+        text = "Cost: 5*3 = 15"
+        result = markdown_to_telegram(text)
+        # Unpaired asterisk should be escaped
+        assert "5\\*3" in result
+
+    def test_unpaired_backtick_escaping(self) -> None:
+        """Test that unpaired backticks are escaped."""
+        text = "The ` character is used for code"
+        result = markdown_to_telegram(text)
+        # Unpaired backticks should be escaped
+        assert "\\`" in result
+
+    def test_header_with_bold_text(self) -> None:
+        """Test that headers with bold text don't create nested asterisks."""
+        text = "## Header with **bold** text"
+        result = markdown_to_telegram(text)
+        # Should not have nested asterisks
+        assert "*Header with bold text*" in result
+        # Should not have double or nested asterisks
+        assert "**" not in result
+        assert "*Header with *bold* text*" not in result

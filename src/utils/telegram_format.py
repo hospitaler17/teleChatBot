@@ -102,16 +102,21 @@ def escape_telegram_markdown(text: str, protect_formatting: bool = True) -> str:
     text = LINK_PATTERN.sub(save_and_replace, text)
 
     # Now escape special characters in remaining text
-    # Strategy: Escape ALL underscores except when they clearly denote italic formatting
-    # Italic formatting pattern: _word_ or _multiple words_ (no spaces at boundaries)
+    # Strategy: Escape underscores, asterisks, and backticks that are NOT part of formatting
 
-    # Find all underscore pairs that look like italic formatting
+    # Find all underscore pairs that look like italic formatting (_text_)
     italic_pattern = re.compile(r'(?<!\w)_([^\s_][^_]*?)_(?!\w)')
     italic_matches = []
     for match in italic_pattern.finditer(text):
         italic_matches.append((match.start(), match.end()))
 
-    # Escape underscores that are NOT part of italic formatting
+    # Find all asterisk pairs that look like bold formatting (*text*)
+    bold_pattern = re.compile(r'(?<!\*)\*([^\s*][^*]*?)\*(?!\*)')
+    bold_matches = []
+    for match in bold_pattern.finditer(text):
+        bold_matches.append((match.start(), match.end()))
+
+    # Escape special characters that are NOT part of intentional formatting
     result = []
     i = 0
     while i < len(text):
@@ -122,6 +127,17 @@ def escape_telegram_markdown(text: str, protect_formatting: bool = True) -> str:
                 result.append('_')
             else:
                 result.append('\\_')
+        elif text[i] == '*':
+            # Check if this asterisk is part of bold formatting
+            in_bold = any(start <= i < end for start, end in bold_matches)
+            if in_bold:
+                result.append('*')
+            else:
+                result.append('\\*')
+        elif text[i] == '`':
+            # Backticks outside of code blocks (already protected) should be escaped
+            # to prevent them from being interpreted as inline code delimiters
+            result.append('\\`')
         else:
             result.append(text[i])
         i += 1
@@ -167,7 +183,17 @@ def markdown_to_telegram(text: str) -> str:
 
     # Step 1: Convert markdown headers to bold
     # Match lines starting with 2-4 hashes followed by space and text
-    text = re.sub(r'^#{2,4}\s+(.+?)$', r'*\1*', text, flags=re.MULTILINE)
+    # To avoid nested asterisks when headers contain bold segments (e.g. "**bold**"),
+    # we strip inner markdown bold markers inside headers before wrapping the whole
+    # header line in a single pair of asterisks.
+    def _convert_header(match):
+        header_text = match.group(1)
+        # Remove markdown bold markers inside headers, keeping the inner text.
+        # This prevents nested/overlapping asterisks like "*Header with *bold* text*".
+        header_text = re.sub(r'\*\*(.+?)\*\*', r'\1', header_text)
+        return f'*{header_text}*'
+
+    text = re.sub(r'^#{2,4}\s+(.+?)$', _convert_header, text, flags=re.MULTILINE)
 
     # Step 2: Convert double asterisks to single (markdown bold to Telegram bold)
     # Use a more careful approach to avoid breaking existing single asterisks
