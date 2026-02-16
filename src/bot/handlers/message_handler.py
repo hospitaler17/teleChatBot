@@ -23,6 +23,46 @@ MSG_STREAMING_INDICATOR = "⏳ Генерация..."
 MSG_MULTI_PART_PREFIX = "часть"  # Used as: "(часть 2/3)"
 
 
+def _truncate_safely(text: str, max_len: int, indicator: str) -> str:
+    """Truncate text safely without breaking markdown formatting.
+
+    Args:
+        text: The text to truncate
+        max_len: Maximum length
+        indicator: Streaming indicator to append
+
+    Returns:
+        Truncated text with indicator
+    """
+    indicator_with_newlines = f"\n\n{indicator}"
+    available_len = max_len - len(indicator_with_newlines)
+
+    if available_len <= 0:
+        return indicator
+
+    if len(text) <= available_len:
+        return text + indicator_with_newlines
+
+    # Truncate text
+    truncated = text[:available_len]
+
+    # Close any open markdown formatting to prevent parse errors
+    # Count unclosed asterisks, underscores, backticks
+    asterisk_count = truncated.count('*') % 2
+    underscore_count = truncated.count('_') % 2
+    backtick_count = truncated.count('`') % 2
+
+    # Close open formatting
+    if asterisk_count:
+        truncated += '*'
+    if underscore_count:
+        truncated += '_'
+    if backtick_count:
+        truncated += '`'
+
+    return truncated + indicator_with_newlines
+
+
 class MessageHandler:
     """Processes incoming text messages via the Mistral model."""
 
@@ -156,13 +196,12 @@ class MessageHandler:
         formatted_message: str,
     ) -> None:
         """Handle streaming response with progressive message updates."""
-
-
         accumulated_content = ""
         last_update_time = time.time()
         sent_message = None
         update_interval = self._settings.bot.streaming_update_interval
         threshold = self._settings.bot.streaming_threshold
+        streaming_successful = False
 
         try:
             async for chunk_content, full_content, is_final in self._mistral.generate_stream(
@@ -181,35 +220,125 @@ class MessageHandler:
                 )
 
                 if should_update and accumulated_content:
+                    # Normalize first to get accurate length
                     normalized = _normalize_markdown_for_telegram(accumulated_content)
 
-                    # For long messages, truncate with indicator during streaming
+                    # For long messages during streaming, truncate safely
                     max_len = self._settings.bot.max_message_length
+                    display_text = normalized
                     if len(normalized) > max_len and not is_final:
-                        # Truncate and add streaming indicator
-                        normalized = normalized[:max_len - 20] + f"\n\n{MSG_STREAMING_INDICATOR}"
+                        # Use markdown-aware truncation
+                        display_text = _truncate_safely(
+                            normalized, max_len, MSG_STREAMING_INDICATOR
+                        )
 
                     try:
                         if sent_message is None:
                             # Send initial message
                             sent_message = await message.reply_text(
-                                normalized, parse_mode="Markdown"
+                                display_text, parse_mode="Markdown"
                             )
                         else:
                             # Update existing message
                             await sent_message.edit_text(
-                                normalized, parse_mode="Markdown"
+                                display_text, parse_mode="Markdown"
                             )
                         last_update_time = current_time
                     except BadRequest as e:
-                        # Handle cases where message content hasn't changed
-                        if "message is not modified" not in str(e).lower():
+                        error_msg = str(e).lower()
+                        # Handle different BadRequest scenarios
+                        if "message is not modified" in error_msg:
+                            # Content unchanged, skip update
+                            pass
+                        elif "can't parse entities" in error_msg or "parse" in error_msg:
+                            # Markdown parse error, retry without parse_mode
+                            logger.warning(f"Markdown parse error, retrying as plain text: {e}")
+                            try:
+                                if sent_message is None:
+                                    sent_message = await message.reply_text(display_text)
+                                else:
+                                    await sent_message.edit_text(display_text)
+                                last_update_time = current_time
+                            except Exception as retry_error:
+                                logger.error(f"Failed to send as plain text: {retry_error}")
+                        else:
                             logger.warning(f"Failed to update message: {e}")
 
-            # After streaming completes, handle long messages by splitting
+            # Streaming completed successfully
+            streaming_successful = True
+
+            # After streaming completes, handle final message
             if accumulated_content:
-                # Store in history
-                if context_id is not None:
+                # Calculate chunks with proper accounting for multi-part prefix
+                max_len = self._settings.bot.max_message_length
+                # Reserve space for multi-part prefix: "(часть X/YY)\n\n" ≈ 20 chars
+                chunk_max_len = max_len - 25 if max_len > 25 else max_len
+                chunks = _split_text(accumulated_content, chunk_max_len)
+
+                if len(chunks) > 1:
+                    # Multi-part message: update first chunk and send remaining
+                    first_chunk_normalized = _normalize_markdown_for_telegram(chunks[0])
+                    # Add part indicator to first chunk
+                    first_chunk_text = (
+                        f"({MSG_MULTI_PART_PREFIX} 1/{len(chunks)})\n\n{first_chunk_normalized}"
+                    )
+
+                    if sent_message:
+                        # Update the first message with proper prefix
+                        try:
+                            await sent_message.edit_text(
+                                first_chunk_text, parse_mode="Markdown"
+                            )
+                        except BadRequest as e:
+                            if "can't parse entities" in str(e).lower():
+                                # Retry as plain text
+                                await sent_message.edit_text(first_chunk_text)
+                            elif "message is not modified" not in str(e).lower():
+                                logger.warning(f"Failed to update first chunk: {e}")
+                    else:
+                        # First message was never sent (short response), send it now
+                        try:
+                            sent_message = await message.reply_text(
+                                first_chunk_text, parse_mode="Markdown"
+                            )
+                        except BadRequest:
+                            sent_message = await message.reply_text(first_chunk_text)
+
+                    # Send remaining chunks
+                    for i, chunk in enumerate(chunks[1:], start=2):
+                        normalized = _normalize_markdown_for_telegram(chunk)
+                        chunk_text = (
+                            f"({MSG_MULTI_PART_PREFIX} {i}/{len(chunks)})\n\n{normalized}"
+                        )
+                        try:
+                            await message.reply_text(chunk_text, parse_mode="Markdown")
+                        except BadRequest:
+                            # Fallback to plain text
+                            await message.reply_text(chunk_text)
+                else:
+                    # Single message: ensure it's sent or updated properly
+                    normalized = _normalize_markdown_for_telegram(chunks[0])
+                    if sent_message:
+                        # Update to remove streaming indicator if present
+                        try:
+                            await sent_message.edit_text(normalized, parse_mode="Markdown")
+                        except BadRequest as e:
+                            error_msg = str(e).lower()
+                            if "can't parse entities" in error_msg:
+                                await sent_message.edit_text(normalized)
+                            elif "message is not modified" not in error_msg:
+                                logger.warning(f"Failed to update final message: {e}")
+                    else:
+                        # Short response that never triggered threshold, send now
+                        try:
+                            sent_message = await message.reply_text(
+                                normalized, parse_mode="Markdown"
+                            )
+                        except BadRequest:
+                            sent_message = await message.reply_text(normalized)
+
+                # Store in memory only after successful completion
+                if streaming_successful and context_id is not None:
                     self._mistral._memory.add_message(context_id, "user", formatted_message)
                     self._mistral._memory.add_message(
                         context_id, "assistant", accumulated_content
@@ -219,27 +348,6 @@ class MessageHandler:
                         f"for context_id={context_id}"
                     )
 
-                # Split and send full response if it exceeds max length
-                max_len = self._settings.bot.max_message_length
-                chunks = _split_text(accumulated_content, max_len)
-
-                if len(chunks) > 1:
-                    # First chunk was already sent/updated, send remaining chunks
-                    for i, chunk in enumerate(chunks[1:], start=2):
-                        normalized = _normalize_markdown_for_telegram(chunk)
-                        await message.reply_text(
-                            f"({MSG_MULTI_PART_PREFIX} {i}/{len(chunks)})\n\n{normalized}",
-                            parse_mode="Markdown"
-                        )
-                elif sent_message:
-                    # Update the message one final time without the streaming indicator
-                    normalized = _normalize_markdown_for_telegram(chunks[0])
-                    try:
-                        await sent_message.edit_text(normalized, parse_mode="Markdown")
-                    except BadRequest as e:
-                        if "message is not modified" not in str(e).lower():
-                            logger.warning(f"Failed to update final message: {e}")
-
         except Exception:
             logger.exception("Failed during streaming response")
             # Send error message
@@ -247,7 +355,7 @@ class MessageHandler:
                 await message.reply_text(MSG_ERROR)
             else:
                 try:
-                    await sent_message.edit_text(MSG_ERROR)
+                    await sent_message.edit_text(MSG_ERROR, parse_mode=None)
                 except Exception:
                     await message.reply_text(MSG_ERROR)
 

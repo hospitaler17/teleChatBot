@@ -45,6 +45,8 @@ class BotSettings(BaseModel):
     enable_streaming: bool = True  # Enable progressive message streaming
     streaming_threshold: int = 100  # Minimum response length to enable streaming (in characters)
     streaming_update_interval: float = 1.0  # Seconds between message updates during streaming
+    # Note: Telegram has rate limits (~30 edits/sec total, lower per chat).
+    # With many concurrent users, use interval >= 1.0 to avoid rate limit errors.
 
 
 class AdminSettings(BaseModel):
