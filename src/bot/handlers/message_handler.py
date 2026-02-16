@@ -68,7 +68,8 @@ async def _safe_edit_message(
     message: Message,
     text: str,
     parse_mode: str | None = "Markdown",
-    max_retries: int = 3
+    max_retries: int = 3,
+    allow_parse_retry: bool = True
 ) -> bool:
     """Safely edit a message with retry logic for rate limiting.
 
@@ -77,6 +78,7 @@ async def _safe_edit_message(
         text: New text content
         parse_mode: Parse mode for formatting (default: "Markdown")
         max_retries: Maximum number of retry attempts (default: 3)
+        allow_parse_retry: Allow retry with parse_mode=None on parse errors
 
     Returns:
         True if edit was successful, False otherwise
@@ -108,10 +110,13 @@ async def _safe_edit_message(
                 # Content unchanged, consider it a success
                 return True
             elif "can't parse entities" in error_msg or "parse" in error_msg:
-                # Try again without parse mode
-                if parse_mode is not None:
+                # Try again without parse mode (only once)
+                if parse_mode is not None and allow_parse_retry:
                     logger.warning(f"Markdown parse error, retrying as plain text: {e}")
-                    return await _safe_edit_message(message, text, parse_mode=None, max_retries=1)
+                    return await _safe_edit_message(
+                        message, text, parse_mode=None,
+                        max_retries=1, allow_parse_retry=False
+                    )
             # For other BadRequest errors, fail
             logger.warning(f"Failed to edit message: {e}")
             return False
@@ -127,7 +132,8 @@ async def _safe_send_message(
     message: Message,
     text: str,
     parse_mode: str | None = "Markdown",
-    max_retries: int = 3
+    max_retries: int = 3,
+    allow_parse_retry: bool = True
 ) -> Message | None:
     """Safely send a message with retry logic for rate limiting.
 
@@ -136,6 +142,7 @@ async def _safe_send_message(
         text: Text content to send
         parse_mode: Parse mode for formatting (default: "Markdown")
         max_retries: Maximum number of retry attempts (default: 3)
+        allow_parse_retry: Allow retry with parse_mode=None on parse errors
 
     Returns:
         The sent message, or None if failed
@@ -160,12 +167,15 @@ async def _safe_send_message(
                 )
                 return None
         except BadRequest as e:
-            # Try again without parse mode if it's a parse error
+            # Try again without parse mode if it's a parse error (only once)
             error_msg = str(e).lower()
             if "can't parse entities" in error_msg or "parse" in error_msg:
-                if parse_mode is not None:
+                if parse_mode is not None and allow_parse_retry:
                     logger.warning(f"Markdown parse error, retrying as plain text: {e}")
-                    return await _safe_send_message(message, text, parse_mode=None, max_retries=1)
+                    return await _safe_send_message(
+                        message, text, parse_mode=None,
+                        max_retries=1, allow_parse_retry=False
+                    )
             # For other BadRequest errors, fail
             logger.warning(f"Failed to send message: {e}")
             return None

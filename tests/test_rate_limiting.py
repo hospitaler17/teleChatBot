@@ -31,7 +31,9 @@ async def test_safe_edit_message_retry_after() -> None:
     retry_error = RetryAfter(1)
     message.edit_text = AsyncMock(side_effect=[retry_error, None])
 
-    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+    with patch(
+        "src.bot.handlers.message_handler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
         result = await _safe_edit_message(message, "test text", max_retries=3)
 
     assert result is True
@@ -49,7 +51,9 @@ async def test_safe_edit_message_retry_after_max_retries() -> None:
     retry_error = RetryAfter(1)
     message.edit_text = AsyncMock(side_effect=retry_error)
 
-    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+    with patch(
+        "src.bot.handlers.message_handler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
         result = await _safe_edit_message(message, "test text", max_retries=3)
 
     assert result is False
@@ -81,7 +85,9 @@ async def test_safe_send_message_retry_after() -> None:
     retry_error = RetryAfter(1)
     message.reply_text = AsyncMock(side_effect=[retry_error, sent_message])
 
-    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+    with patch(
+        "src.bot.handlers.message_handler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
         result = await _safe_send_message(message, "test text", max_retries=3)
 
     assert result == sent_message
@@ -99,7 +105,9 @@ async def test_safe_send_message_retry_after_max_retries() -> None:
     retry_error = RetryAfter(2)
     message.reply_text = AsyncMock(side_effect=retry_error)
 
-    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+    with patch(
+        "src.bot.handlers.message_handler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
         result = await _safe_send_message(message, "test text", max_retries=3)
 
     assert result is None
