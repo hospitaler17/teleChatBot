@@ -17,6 +17,7 @@ def test_defaults() -> None:
     assert settings.mistral.model == "mistral-small-latest"
     assert settings.mistral.max_tokens == 1024
     assert settings.mistral.system_prompt == ""
+    assert settings.mistral.always_append_date is False
     assert settings.bot.language == "ru"
     assert settings.access.allowed_user_ids == []
     assert settings.access.allowed_chat_ids == []
@@ -36,6 +37,7 @@ def test_load_from_yaml(tmp_path: Path) -> None:
           model: mistral-large-latest
           temperature: 0.5
           system_prompt: "You are a helpful assistant."
+          always_append_date: true
         bot:
           username: testbot
         admin:
@@ -63,6 +65,7 @@ def test_load_from_yaml(tmp_path: Path) -> None:
     assert settings.mistral.model == "mistral-large-latest"
     assert settings.mistral.temperature == 0.5
     assert settings.mistral.system_prompt == "You are a helpful assistant."
+    assert settings.mistral.always_append_date is True
     assert settings.bot.username == "testbot"
     assert settings.admin.user_ids == [111]
     assert settings.access.allowed_user_ids == [100, 200]

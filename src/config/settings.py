@@ -83,6 +83,7 @@ class MistralSettings(BaseModel):
         system_prompt: Optional system prompt to set the assistant's behavior
         enable_web_search: Enable web search to augment responses with current information
         conversation_history_size: Number of previous messages to include in context (default: 10)
+        always_append_date: Always append current date to system prompt, regardless of keywords
     """
 
     model: str = "mistral-small-latest"
@@ -91,6 +92,7 @@ class MistralSettings(BaseModel):
     system_prompt: str = ""
     enable_web_search: bool = False
     conversation_history_size: int = 10
+    always_append_date: bool = False
 
 
 class BotSettings(BaseModel):

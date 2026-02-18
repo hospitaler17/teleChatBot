@@ -27,6 +27,10 @@ mistral:
   # Larger values = more context but higher API token usage
   # Set to 0 to disable conversation history
   conversation_history_size: 10
+  # Always append current date to system prompt, even if no date-related keywords detected
+  # When enabled, every request will include current date context
+  # Useful for ensuring date consistency across all responses
+  always_append_date: false
 
 # Bot behavior
 bot:
