@@ -218,7 +218,9 @@ async def test_generate_without_date_context(
 @patch("src.api.mistral_client.Mistral")
 @pytest.mark.asyncio
 async def test_generate_with_always_append_date_enabled(mock_mistral: MagicMock) -> None:
-    """generate() should add date to system prompt when always_append_date is True."""
+    """generate() should add date when always_append_date config and runtime are both True."""
+    from src.config.settings import AccessSettings
+
     settings = AppSettings(
         mistral_api_key="fake-key",
         mistral=MistralSettings(
@@ -226,6 +228,7 @@ async def test_generate_with_always_append_date_enabled(mock_mistral: MagicMock)
             system_prompt="You are helpful.",
             always_append_date=True,
         ),
+        access=AccessSettings(always_append_date_enabled=True),
     )
 
     mock_client = MagicMock()
@@ -298,6 +301,53 @@ async def test_generate_with_always_append_date_disabled(mock_mistral: MagicMock
     assert result.content == "Python is great!"
 
     # Verify that date was NOT added
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    # System message should not contain date
+    if len(messages) > 0 and messages[0].role == "system":
+        assert "CURRENT YEAR" not in messages[0].content
+        assert "CRITICAL CONTEXT" not in messages[0].content
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_with_always_append_date_runtime_disabled(
+    mock_mistral: MagicMock,
+) -> None:
+    """generate() should NOT add date when config is True but runtime toggle is False."""
+    from src.config.settings import AccessSettings
+
+    settings = AppSettings(
+        mistral_api_key="fake-key",
+        mistral=MistralSettings(
+            model="mistral-small-latest",
+            always_append_date=True,  # Config enabled
+        ),
+        access=AccessSettings(always_append_date_enabled=False),  # Runtime disabled
+    )
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_message = MagicMock()
+    mock_message.content = "Python is great!"
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 8
+    mock_usage.completion_tokens = 4
+    mock_response.usage = mock_usage
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_mistral.return_value = mock_client
+
+    client = MistralClient(settings)
+    # Query without date keywords
+    result = await client.generate("What is Python?")
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "Python is great!"
+
+    # Verify that date was NOT added (runtime toggle overrides config)
     mock_client.chat.complete_async.assert_called_once()
     _, kwargs = mock_client.chat.complete_async.call_args
     messages = kwargs["messages"]

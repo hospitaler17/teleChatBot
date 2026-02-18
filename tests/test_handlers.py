@@ -257,3 +257,71 @@ class TestAdminHandler:
 
         # All should have rejected the user
         assert update.message.reply_text.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_date_on_as_admin(self, tmp_path) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        s.access.always_append_date_enabled = False
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        with patch("src.config.settings.CONFIG_DIR", tmp_path):
+            await handler.date_on(update, ctx)
+        assert s.access.always_append_date_enabled is True
+        update.message.reply_text.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_date_off_as_admin(self, tmp_path) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        s.access.always_append_date_enabled = True
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        with patch("src.config.settings.CONFIG_DIR", tmp_path):
+            await handler.date_off(update, ctx)
+        assert s.access.always_append_date_enabled is False
+        update.message.reply_text.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_date_status_as_admin(self) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        s.access.always_append_date_enabled = True
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        await handler.date_status(update, ctx)
+        update.message.reply_text.assert_awaited_once()
+        call_text = update.message.reply_text.call_args[0][0]
+        # Should show status information
+        assert "Статус добавления даты" in call_text
+
+    @pytest.mark.asyncio
+    async def test_date_commands_rejected_for_non_admin(self) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        handler = AdminHandler(s, af)
+
+        update = _update(user_id=99)  # Non-admin user
+        ctx = MagicMock()
+
+        # Test all three commands are rejected
+        await handler.date_on(update, ctx)
+        await handler.date_off(update, ctx)
+        await handler.date_status(update, ctx)
+
+        # All should have rejected the user
+        assert update.message.reply_text.call_count == 3

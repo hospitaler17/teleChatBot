@@ -121,6 +121,7 @@ class AccessSettings(BaseModel):
     allowed_user_ids: list[int] = Field(default_factory=list)
     allowed_chat_ids: list[int] = Field(default_factory=list)
     reactions_enabled: bool = True  # Runtime toggle for reactions
+    always_append_date_enabled: bool = True  # Runtime toggle for always appending date
 
 
 class ReactionSettings(BaseModel):
@@ -312,6 +313,7 @@ class AppSettings(BaseSettings):
             "allowed_user_ids": self.access.allowed_user_ids,
             "allowed_chat_ids": self.access.allowed_chat_ids,
             "reactions_enabled": self.access.reactions_enabled,
+            "always_append_date_enabled": self.access.always_append_date_enabled,
         }
         with open(access_path, "w", encoding="utf-8") as fh:
             yaml.safe_dump(data, fh, default_flow_style=False)

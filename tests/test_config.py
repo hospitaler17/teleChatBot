@@ -22,6 +22,7 @@ def test_defaults() -> None:
     assert settings.access.allowed_user_ids == []
     assert settings.access.allowed_chat_ids == []
     assert settings.access.reactions_enabled is True  # Default
+    assert settings.access.always_append_date_enabled is True  # Default
     assert settings.reactions.enabled is False  # Default - disabled
     assert settings.reactions.model == "mistral-small-latest"
     assert settings.reactions.probability == 0.3
@@ -84,12 +85,14 @@ def test_save_access(tmp_path: Path) -> None:
     settings.access.allowed_user_ids.append(42)
     settings.access.allowed_chat_ids.append(-999)
     settings.access.reactions_enabled = False
+    settings.access.always_append_date_enabled = False
     settings.save_access(config_dir=tmp_path)
 
     reloaded = AppSettings.load(config_dir=tmp_path)
     assert 42 in reloaded.access.allowed_user_ids
     assert -999 in reloaded.access.allowed_chat_ids
     assert reloaded.access.reactions_enabled is False
+    assert reloaded.access.always_append_date_enabled is False
 
 
 def test_unicode_decode_error(tmp_path: Path) -> None:
