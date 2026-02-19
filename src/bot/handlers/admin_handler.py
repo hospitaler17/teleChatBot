@@ -81,32 +81,9 @@ class AdminHandler:
 
     async def list_access(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_list"""
-        if not self._is_admin(update):
-            await self._reject(update)
-            return
-        users = self._settings.access.allowed_user_ids or ["(пусто)"]
-        chats = self._settings.access.allowed_chat_ids or ["(пусто)"]
-
-        # Show effective reactions status (both config and runtime must be enabled)
-        config_enabled = self._settings.reactions.enabled
-        runtime_enabled = self._settings.access.reactions_enabled
-        effective = config_enabled and runtime_enabled
-        reactions_status = "Включены ✅" if effective else "Выключены ❌"
-
-        # Show effective date status (both config and runtime must be enabled)
-        date_config_enabled = self._settings.mistral.always_append_date
-        date_runtime_enabled = self._settings.access.always_append_date_enabled
-        date_effective = date_config_enabled and date_runtime_enabled
-        date_status = "Включено ✅" if date_effective else "Выключено ❌"
-
-        text = (
-            "📋 *Текущие настройки доступа:*\n\n"
-            f"*Пользователи:*\n{_format_list(users)}\n\n"
-            f"*Чаты:*\n{_format_list(chats)}\n\n"
-            f"*Реакции:* {reactions_status}\n"
-            f"*Добавление даты:* {date_status}"
-        )
-        await update.message.reply_text(text, parse_mode="Markdown")
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.list_access(admin_id)
+        await update.message.reply_text(message, parse_mode="Markdown")
 
     async def reactions_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_reactions_on"""
@@ -128,49 +105,21 @@ class AdminHandler:
 
     async def date_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_date_on"""
-        if not self._is_admin(update):
-            await self._reject(update)
-            return
-        self._settings.access.always_append_date_enabled = True
-        self._settings.save_access()
-        await update.message.reply_text(
-            "✅ Автоматическое добавление даты в системный промпт включено."
-        )
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.date_on(admin_id)
+        await update.message.reply_text(message)
 
     async def date_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_date_off"""
-        if not self._is_admin(update):
-            await self._reject(update)
-            return
-        self._settings.access.always_append_date_enabled = False
-        self._settings.save_access()
-        await update.message.reply_text(
-            "✅ Автоматическое добавление даты в системный промпт выключено."
-        )
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.date_off(admin_id)
+        await update.message.reply_text(message)
 
     async def date_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_date_status"""
-        if not self._is_admin(update):
-            await self._reject(update)
-            return
-
-        # Check both config and runtime flags
-        config_enabled = self._settings.mistral.always_append_date
-        runtime_enabled = self._settings.access.always_append_date_enabled
-        effective = config_enabled and runtime_enabled
-
-        status = "включено ✅" if effective else "выключено ❌"
-        text = (
-            f"*Статус добавления даты:* {status}\n\n"
-            f"*Настройки:*\n"
-            f"• Конфигурация: {'включена' if config_enabled else 'выключена'}\n"
-            f"• Рантайм-переключатель: {'включён' if runtime_enabled else 'выключен'}\n\n"
-            f"*Как работает:*\n"
-            f"Если включено, текущая дата всегда добавляется к системному промпту, "
-            f"даже если ключевые слова не обнаружены в запросе.\n\n"
-            f"Это гарантирует, что бот всегда знает текущую дату."
-        )
-        await update.message.reply_text(text, parse_mode="Markdown")
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.date_status(admin_id)
+        await update.message.reply_text(message, parse_mode="Markdown")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -184,3 +133,4 @@ class AdminHandler:
             except ValueError:
                 return None
         return None
+

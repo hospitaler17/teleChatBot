@@ -139,11 +139,18 @@ class AdminCommandService:
         effective = config_enabled and runtime_enabled
         reactions_status = "Включены ✅" if effective else "Выключены ❌"
 
+        # Show effective date status (both config and runtime must be enabled)
+        date_config_enabled = self._settings.mistral.always_append_date
+        date_runtime_enabled = self._settings.access.always_append_date_enabled
+        date_effective = date_config_enabled and date_runtime_enabled
+        date_status = "Включено ✅" if date_effective else "Выключено ❌"
+
         message = (
             "📋 *Текущие настройки доступа:*\n\n"
             f"*Пользователи:*\n{_format_list(users)}\n\n"
             f"*Чаты:*\n{_format_list(chats)}\n\n"
-            f"*Реакции:* {reactions_status}"
+            f"*Реакции:* {reactions_status}\n"
+            f"*Добавление даты:* {date_status}"
         )
         return True, message
 
@@ -206,6 +213,68 @@ class AdminCommandService:
             f"• Вероятность: {self._settings.reactions.probability * 100:.0f}%\n"
             f"• Мин. слов: {self._settings.reactions.min_words}\n"
             f"• Настроения: {len(self._settings.reactions.moods)}"
+        )
+        return True, message
+
+    def date_on(self, admin_id: int) -> tuple[bool, str]:
+        """Enable always appending date to system prompt.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        self._settings.access.always_append_date_enabled = True
+        self._settings.save_access()
+        return True, "✅ Автоматическое добавление даты в системный промпт включено."
+
+    def date_off(self, admin_id: int) -> tuple[bool, str]:
+        """Disable always appending date to system prompt.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        self._settings.access.always_append_date_enabled = False
+        self._settings.save_access()
+        return True, "✅ Автоматическое добавление даты в системный промпт выключено."
+
+    def date_status(self, admin_id: int) -> tuple[bool, str]:
+        """Get current date appending status and settings.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        # Check both config and runtime flags
+        config_enabled = self._settings.mistral.always_append_date
+        runtime_enabled = self._settings.access.always_append_date_enabled
+        effective = config_enabled and runtime_enabled
+
+        status = "включено ✅" if effective else "выключено ❌"
+        message = (
+            f"*Статус добавления даты:* {status}\n\n"
+            f"*Настройки:*\n"
+            f"• Конфигурация: {'включена' if config_enabled else 'выключена'}\n"
+            f"• Рантайм-переключатель: {'включён' if runtime_enabled else 'выключен'}\n\n"
+            f"*Как работает:*\n"
+            f"Если включено, текущая дата всегда добавляется к системному промпту, "
+            f"даже если ключевые слова не обнаружены в запросе.\n\n"
+            f"Это гарантирует, что бот всегда знает текущую дату."
         )
         return True, message
 
