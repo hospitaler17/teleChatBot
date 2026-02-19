@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 """Test script to verify message extraction logic for reply messages."""
 
-from unittest.mock import Mock, MagicMock
-from src.bot.handlers.message_handler import MessageHandler
-from src.config.settings import AppSettings
+from unittest.mock import MagicMock, Mock
+
 from src.api.mistral_client import MistralClient
 from src.bot.filters.access_filter import AccessFilter
+from src.bot.handlers.message_handler import MessageHandler
+from src.config.settings import AppSettings
 
 
 def test_extract_text_from_reply():
     """Test extraction of text from a reply message."""
-    
+
     # Create mock dependencies
-    settings = Mock(spec=AppSettings)
+    settings = MagicMock(spec=AppSettings)
+    settings.mistral_api_key = "test-key"
     mistral = Mock(spec=MistralClient)
     access = Mock(spec=AccessFilter)
-    
+
     # Create handler
     handler = MessageHandler(settings, mistral, access)
-    
+
     # Create mock replied message
     replied_user = Mock()
     replied_user.first_name = "Alice"
-    
+
     replied_message = Mock()
     replied_message.text = "This is the original message"
     replied_message.from_user = replied_user
@@ -40,11 +42,11 @@ def test_extract_text_from_reply():
     replied_message.invoice = None
     # Important: disable forward_origin Mock behavior
     replied_message.forward_origin = None
-    
+
     # Create mock current message (reply to the above)
     current_user = Mock()
     current_user.first_name = "Bob"
-    
+
     current_message = Mock()
     current_message.text = "I agree with this"
     current_message.from_user = current_user
@@ -62,10 +64,10 @@ def test_extract_text_from_reply():
     current_message.invoice = None
     # Important: disable forward_origin Mock behavior
     current_message.forward_origin = None
-    
+
     # Test extraction
     extracted = handler._extract_text_from_message(current_message)
-    
+
     print("=" * 60)
     print("TEST: Extract text from reply message")
     print("=" * 60)
@@ -73,13 +75,13 @@ def test_extract_text_from_reply():
     print(f"Current message: '{current_message.text}'")
     print(f"\nExtracted text:\n{extracted}")
     print("=" * 60)
-    
+
     # Assertions
     assert extracted is not None, "Extracted text should not be None"
     assert "Сообщение от Alice" in extracted, "Should contain reference to Alice"
     assert "This is the original message" in extracted, "Should contain original message"
     assert "I agree with this" in extracted, "Should contain current message text"
-    
+
     print("✓ All tests passed!")
     print("\nThe bot now correctly:")
     print("  1. Detects reply messages (reply_to_message)")
@@ -90,15 +92,16 @@ def test_extract_text_from_reply():
 
 def test_extract_text_regular():
     """Test extraction of text from a regular message."""
-    
+
     # Create mock dependencies
-    settings = Mock(spec=AppSettings)
+    settings = MagicMock(spec=AppSettings)
+    settings.mistral_api_key = "test-key"
     mistral = Mock(spec=MistralClient)
     access = Mock(spec=AccessFilter)
-    
+
     # Create handler
     handler = MessageHandler(settings, mistral, access)
-    
+
     # Create mock regular message
     message = Mock()
     message.text = "Just a regular message"
@@ -115,10 +118,10 @@ def test_extract_text_regular():
     message.contact = None
     message.invoice = None
     message.forward_origin = None  # Disable Mock behavior
-    
+
     # Test extraction
     extracted = handler._extract_text_from_message(message)
-    
+
     print("\n" + "=" * 60)
     print("TEST: Extract text from regular message")
     print("=" * 60)
