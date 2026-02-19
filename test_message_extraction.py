@@ -12,7 +12,8 @@ def test_extract_text_from_reply():
     """Test extraction of text from a reply message."""
     
     # Create mock dependencies
-    settings = Mock(spec=AppSettings)
+    settings = MagicMock(spec=AppSettings)
+    settings.mistral_api_key = "test-key"
     mistral = Mock(spec=MistralClient)
     access = Mock(spec=AccessFilter)
     
@@ -92,7 +93,8 @@ def test_extract_text_regular():
     """Test extraction of text from a regular message."""
     
     # Create mock dependencies
-    settings = Mock(spec=AppSettings)
+    settings = MagicMock(spec=AppSettings)
+    settings.mistral_api_key = "test-key"
     mistral = Mock(spec=MistralClient)
     access = Mock(spec=AccessFilter)
     

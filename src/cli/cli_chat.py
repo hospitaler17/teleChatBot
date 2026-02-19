@@ -10,7 +10,9 @@ import logging
 import sys
 from typing import Optional
 
+from src.api.admin_commands import AdminCommandService
 from src.api.mistral_client import MistralClient
+from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
 
 logger = logging.getLogger(__name__)
@@ -27,8 +29,20 @@ class CLIChat:
         """
         self.settings = settings
         self.client = MistralClient(settings)
-        self.user_id = 1  # Fixed user ID for CLI sessions
+        # Fixed user ID for CLI sessions (reserved for local testing)
+        # This user ID is automatically added to admin list for full functionality
+        self.user_id = 1
         self.running = False
+        # Initialize admin commands service
+        access_filter = AccessFilter(settings)
+        self.admin_commands = AdminCommandService(settings, access_filter)
+        # Detect whether the console supports emoji printing to avoid UnicodeEncodeError
+        self.use_emoji = True
+        try:
+            enc = sys.stdout.encoding or "utf-8"
+            "👤".encode(enc)
+        except Exception:
+            self.use_emoji = False
 
     def print_banner(self) -> None:
         """Print welcome banner with configuration info."""
@@ -46,11 +60,16 @@ class CLIChat:
         if self.settings.mistral.system_prompt:
             print(f"  System prompt: {self.settings.mistral.system_prompt[:50]}...")
         print("-" * 70)
-        print("  Commands:")
+        print("  Chat Commands:")
         print("    /exit, /quit  - Exit CLI mode")
         print("    /clear        - Clear conversation history")
         print("    /stats        - Show conversation statistics")
         print("    /help         - Show this help")
+        print("  Admin Commands:")
+        print("    /admin_list   - Show access lists and reactions status")
+        print("    /admin_reactions_on  - Enable automatic reactions")
+        print("    /admin_reactions_off - Disable automatic reactions")
+        print("    /admin_reactions_status - Show reactions configuration")
         print("=" * 70)
         print()
 
@@ -59,10 +78,16 @@ class CLIChat:
         print("\n" + "=" * 70)
         print("  Available Commands:")
         print("=" * 70)
-        print("  /exit, /quit  - Exit CLI mode")
-        print("  /clear        - Clear conversation history")
-        print("  /stats        - Show conversation statistics")
-        print("  /help         - Show this help")
+        print("  Chat Commands:")
+        print("    /exit, /quit  - Exit CLI mode")
+        print("    /clear        - Clear conversation history")
+        print("    /stats        - Show conversation statistics")
+        print("    /help         - Show this help")
+        print("  Admin Commands:")
+        print("    /admin_list   - Show access lists and reactions status")
+        print("    /admin_reactions_on  - Enable automatic reactions")
+        print("    /admin_reactions_off - Disable automatic reactions")
+        print("    /admin_reactions_status - Show reactions configuration")
         print("=" * 70 + "\n")
 
     def print_stats(self) -> None:
@@ -86,7 +111,7 @@ class CLIChat:
             Tuple of (response_text, metadata) where metadata contains model and token info,
             or None if command was handled
         """
-        # Handle commands
+        # Handle chat commands
         if user_input.lower() in ["/exit", "/quit"]:
             self.running = False
             return None
@@ -104,6 +129,31 @@ class CLIChat:
             self.print_help()
             return None
 
+        # Handle admin commands
+        if user_input.lower() == "/admin_list":
+            success, message = self.admin_commands.list_access(self.user_id)
+            # Remove markdown formatting for CLI display
+            message = message.replace("*", "").replace("`", "")
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_reactions_on":
+            success, message = self.admin_commands.reactions_on(self.user_id)
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_reactions_off":
+            success, message = self.admin_commands.reactions_off(self.user_id)
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_reactions_status":
+            success, message = self.admin_commands.reactions_status(self.user_id)
+            # Remove markdown formatting for CLI display
+            message = message.replace("*", "").replace("`", "")
+            print(f"\n{message}\n")
+            return None
+
         # Process normal message
         try:
             # Add user message to history
@@ -112,7 +162,8 @@ class CLIChat:
             # Check if streaming is enabled
             if self.settings.bot.enable_streaming:
                 # Use streaming mode
-                print("\n🤖 Bot: ", end='', flush=True)
+                bot_label = "\n🤖 Bot: " if self.use_emoji else "\nBot: "
+                print(bot_label, end='', flush=True)
                 accumulated_content = ""
 
                 async for chunk_content, full_content, is_final in self.client.generate_stream(
@@ -163,7 +214,8 @@ class CLIChat:
         while self.running:
             try:
                 # Get user input
-                user_input = input("\n👤 You: ").strip()
+                prompt = "\n👤 You: " if self.use_emoji else "\nYou: "
+                user_input = input(prompt).strip()
 
                 if not user_input:
                     continue
@@ -198,14 +250,17 @@ class CLIChat:
                         print(f"\n🤖 Bot: {result}")
 
             except KeyboardInterrupt:
-                print("\n\n👋 Exiting CLI mode...")
+                bye = "\n\n👋 Exiting CLI mode..." if self.use_emoji else "\n\nExiting CLI mode..."
+                print(bye)
                 break
             except EOFError:
-                print("\n\n👋 Exiting CLI mode...")
+                bye = "\n\n👋 Exiting CLI mode..." if self.use_emoji else "\n\nExiting CLI mode..."
+                print(bye)
                 break
             except Exception as e:
                 logger.exception("Error in CLI loop")
-                print(f"\n❌ Error: {str(e)}")
+                err_label = "\n❌ Error: " if self.use_emoji else "\nError: "
+                print(f"{err_label}{str(e)}")
 
         print("\nGoodbye!\n")
 

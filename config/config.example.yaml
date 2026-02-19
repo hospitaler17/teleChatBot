@@ -53,12 +53,13 @@ bot:
 # Admin settings
 admin:
   # Telegram user IDs with admin privileges (can manage bot via commands)
-  user_ids: []
+  # Note: user_id 1 is reserved for CLI mode (local testing)
+  user_ids: [1]
 
 # Reaction settings - automatically react to user messages based on sentiment
 reactions:
   # Enable or disable the reaction feature (can be toggled at runtime via admin command)
-  enabled: false
+  enabled: true
   # Model to use for sentiment analysis (recommend fast model like mistral-small-latest)
   model: "mistral-small-latest"
   # System prompt for mood analysis - instructs model how to classify sentiment

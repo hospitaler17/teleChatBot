@@ -29,7 +29,14 @@ def main() -> None:
     # Check if CLI mode is enabled
     if settings.bot.cli_mode:
         logger.info("Starting teleChatBot in CLI mode...")
-        asyncio.run(run_cli(settings))
+        try:
+            asyncio.run(run_cli(settings))
+        except KeyboardInterrupt:
+            logger.info("CLI interrupted by user (Ctrl+C). Shutting down.")
+            sys.exit(0)
+        except Exception:
+            logger.exception("Unhandled exception in CLI mode")
+            sys.exit(1)
     else:
         # Telegram mode requires bot token
         if not settings.telegram_bot_token:
@@ -38,7 +45,13 @@ def main() -> None:
 
         logger.info("Starting teleChatBot in Telegram mode...")
         app = create_bot(settings)
-        app.run_polling()
+        try:
+            app.run_polling()
+        except KeyboardInterrupt:
+            logger.info("Polling interrupted by user (Ctrl+C). Shutting down.")
+        except Exception:
+            logger.exception("Unhandled exception while polling")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
