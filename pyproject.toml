@@ -51,7 +51,7 @@ add-ignore = [
     "D107",   # Missing docstring in __init__ (covered by napoleon)
 ]
 match-dir = "src"
-match = "(?!test_).*\\\\.py"
+match = "(?!test_).*\\.py"
 
 [tool.docstr-coverage]
 minpercentage = 70
