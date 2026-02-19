@@ -304,6 +304,32 @@ reactions:
 pip install -r requirements-dev.txt
 pytest --cov=src
 ```
+#### Windows локально: кодировка UTF-8
+
+При запуске тестов на Windows может потребоваться явно включить UTF-8:
+```powershell
+$env:PYTHONUTF8 = '1'
+pytest --cov=src
+```
+
+Это требуется, если в тестах используются emoji или другие Unicode символы. На Linux это работает автоматически.
+## Документация
+
+Полная документация (API, гайды, архитектура) собирается автоматически Sphinx и публикуется на GitHub Pages:
+
+```bash
+# Локальная сборка
+pip install -r docs/requirements.txt
+sphinx-build -b html docs docs/_build/html
+# Открыть: docs/_build/html/index.html
+```
+
+**На Windows требуется UTF-8:**
+```powershell
+$env:PYTHONUTF8 = '1'
+$env:PYTHONPATH = '.'
+D:/ваш-путь/.venv/Scripts/python.exe -m sphinx -b html docs docs/_build/html
+```
 
 ## Структура проекта
 

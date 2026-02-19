@@ -1,0 +1,53 @@
+@startuml teleChatBot-overview
+!theme plain
+skinparam componentStyle rectangle
+skinparam defaultFontName "DejaVu Sans"
+
+title teleChatBot — System Overview
+
+actor "Telegram User" as user
+actor "Admin" as admin
+component "Telegram API" as tg
+
+package "teleChatBot" {
+    component "BotApp\n(bot.py)" as botapp
+    component "AccessFilter" as access
+    component "MessageHandler" as msghandler
+    component "CommandHandler" as cmdhandler
+    component "AdminHandler" as adminhandler
+    component "MistralClient" as mistral
+    component "ModelSelector" as selector
+    component "ConversationMemory" as memory
+    component "WebSearchClient" as search
+    component "ReactionAnalyzer" as reactions
+    component "AppSettings\n(config/settings.py)" as settings
+}
+
+database "config.yaml\nallowed_users.yaml" as cfg
+cloud "Mistral AI API" as mistralapi
+cloud "Google / DDG\nSearch API" as searchapi
+
+user --> tg : sends message
+admin --> tg : runs /admin_* command
+tg --> botapp : webhook / polling
+
+botapp --> access : check access
+botapp --> cmdhandler : /start, /help
+botapp --> adminhandler : /admin_*
+botapp --> msghandler : text messages
+
+msghandler --> mistral : generate(prompt)
+msghandler --> reactions : analyze mood
+
+mistral --> selector : select_model(prompt)
+mistral --> memory : get_history / add_message
+mistral --> search : search(query) [if enabled]
+mistral --> mistralapi : chat.complete / stream
+
+search --> searchapi : HTTP GET
+reactions --> mistralapi : mood analysis
+
+settings --> cfg : load() / save_access()
+botapp ..> settings : uses
+
+@enduml

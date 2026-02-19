@@ -17,6 +17,12 @@ class ReactionAnalyzer:
     """Analyzes message sentiment and suggests reactions."""
 
     def __init__(self, settings: AppSettings) -> None:
+        """Initialize reaction analyzer.
+
+        Args:
+            settings: Application settings containing reaction configuration
+                and the Mistral API key.
+        """
         self._settings = settings
         self._client = Mistral(api_key=settings.mistral_api_key)
 

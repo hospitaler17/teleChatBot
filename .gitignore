@@ -43,3 +43,7 @@ coverage.xml
 # Distribution
 *.tar.gz
 *.whl
+
+# Sphinx build output
+docs/_build/
+docs/_build/*

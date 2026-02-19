@@ -21,6 +21,15 @@ dev = [
     "pytest-asyncio>=0.23,<1.0",
     "pytest-cov>=5.0,<6.0",
     "ruff>=0.5,<1.0",
+    "pydocstyle[toml]>=6.3,<7.0",
+    "docstr-coverage>=2.3,<3.0",
+]
+docs = [
+    "sphinx>=7.4,<9.0",
+    "sphinx-rtd-theme>=2.0,<3.0",
+    "sphinx-autodoc-typehints>=2.0,<3.0",
+    "myst-parser>=3.0,<5.0",
+    "sphinxcontrib-plantuml>=0.29,<1.0",
 ]
 
 [tool.pytest.ini_options]
@@ -33,6 +42,23 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
+
+[tool.pydocstyle]
+convention = "google"
+add-ignore = [
+    "D100",   # Missing docstring in public module (handled per-module)
+    "D104",   # Missing docstring in public package (__init__.py)
+    "D107",   # Missing docstring in __init__ (covered by napoleon)
+]
+match-dir = "src"
+match = "(?!test_).*\\\\.py"
+
+[tool.docstr-coverage]
+minpercentage = 70
+exclude = ["tests/", ".*__pycache__.*"]
+verbose = 2
+skip-file-doc = false
+skip-magic = true
 
 [tool.setuptools.packages.find]
 where = ["."]

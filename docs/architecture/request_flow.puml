@@ -1,0 +1,68 @@
+@startuml teleChatBot-request-flow
+!theme plain
+skinparam defaultFontName "DejaVu Sans"
+
+title teleChatBot — Incoming Message Processing Flow
+
+actor User
+participant "Telegram API" as TG
+participant "MessageHandler" as MH
+participant "AccessFilter" as AF
+participant "ConversationMemory" as CM
+participant "MistralClient" as MC
+participant "ModelSelector" as MS
+participant "WebSearchClient" as WS
+participant "ReactionAnalyzer" as RA
+participant "Mistral AI API" as API
+
+User -> TG : Send message
+TG -> MH : handle(update, context)
+
+MH -> MH : _extract_text_from_message()
+MH -> AF : is_allowed_user() / is_allowed_chat()
+
+alt Access denied
+    MH -> MH : return (silent)
+end
+
+MH -> AF : is_direct_request(message)
+
+alt Not direct request (group chat)
+    MH -> CM : add_message(context_id, "user", …)
+    MH -> MH : return (silent – record only)
+end
+
+MH -> TG : send_chat_action(TYPING)
+
+par Reaction analysis (background task)
+    MH -> RA : should_analyze(text)
+    RA -> API : mood analysis [if enabled]
+    API --> RA : mood word
+    RA -> TG : set_reaction(emoji)
+end
+
+alt Streaming enabled
+    MH -> MC : generate_stream(prompt, user_id)
+    loop for each chunk
+        MC -> MS : select_model(prompt)
+        MC -> CM : get_messages(context_id)
+        opt Web search
+            MC -> WS : search(query)
+            WS --> MC : results
+        end
+        MC -> API : chat.stream_async()
+        API --> MC : chunk
+        MC --> MH : (chunk, full_content, is_final)
+        MH -> TG : edit_text(display_text) [throttled]
+    end
+    MH -> CM : add_message("user") + add_message("assistant")
+else Non-streaming
+    MC -> MS : select_model(prompt)
+    MC -> API : chat.complete_async()
+    API --> MC : full response
+    MC --> MH : GenerateResponse
+    MH -> CM : add_message("user") + add_message("assistant")
+    MH -> TG : reply_text(response)
+end
+
+@enduml

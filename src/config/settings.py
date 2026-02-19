@@ -96,7 +96,19 @@ class MistralSettings(BaseModel):
 
 
 class BotSettings(BaseModel):
-    """General bot behaviour settings."""
+    """General bot behaviour settings.
+
+    Attributes:
+        username: The bot's Telegram username (without ``@``).
+        language: Bot interface language code (default: ``"ru"``).
+        max_message_length: Maximum characters per Telegram message (default: 4096).
+        cli_mode: Run in CLI mode instead of connecting to Telegram.
+        enable_streaming: Enable progressive streaming responses.
+        streaming_threshold: Minimum accumulated characters before first streaming
+            update is sent (default: 100).
+        streaming_update_interval: Seconds between message edit updates during
+            streaming (default: 1.0). Keep >= 1.0 to stay within Telegram rate limits.
+    """
 
     username: str = ""
     language: str = "ru"
@@ -110,13 +122,29 @@ class BotSettings(BaseModel):
 
 
 class AdminSettings(BaseModel):
-    """Admin user list."""
+    """Admin user list.
+
+    Attributes:
+        user_ids: List of Telegram user IDs with admin privileges.
+    """
 
     user_ids: list[int] = Field(default_factory=list)
 
 
 class AccessSettings(BaseModel):
-    """Allowed users and chats loaded from YAML."""
+    """Allowed users and chats loaded from YAML.
+
+    Attributes:
+        allowed_user_ids: List of Telegram user IDs permitted to use the bot
+            in private chats.
+        allowed_chat_ids: List of Telegram chat IDs (groups/supergroups) where
+            the bot is permitted to respond.
+        reactions_enabled: Runtime toggle for automatic message reactions.
+            Both this flag AND ``ReactionSettings.enabled`` must be ``True``.
+        always_append_date_enabled: Runtime toggle for appending the current date
+            to the system prompt. Both this flag AND
+            ``MistralSettings.always_append_date`` must be ``True``.
+    """
 
     allowed_user_ids: list[int] = Field(default_factory=list)
     allowed_chat_ids: list[int] = Field(default_factory=list)
