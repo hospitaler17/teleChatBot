@@ -27,6 +27,9 @@ class AdminHandler:
     /admin_reactions_on           – enable automatic message reactions
     /admin_reactions_off          – disable automatic message reactions
     /admin_reactions_status       – show reactions status and configuration
+    /admin_date_on                – enable always appending date to system prompt
+    /admin_date_off               – disable always appending date to system prompt
+    /admin_date_status            – show date appending status and configuration
     """
 
     def __init__(self, settings: AppSettings, access_filter: AccessFilter) -> None:
@@ -100,6 +103,24 @@ class AdminHandler:
         _success, message = self._commands.reactions_status(admin_id)
         await update.message.reply_text(message, parse_mode="Markdown")
 
+    async def date_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_date_on"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.date_on(admin_id)
+        await update.message.reply_text(message)
+
+    async def date_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_date_off"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.date_off(admin_id)
+        await update.message.reply_text(message)
+
+    async def date_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_date_status"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.date_status(admin_id)
+        await update.message.reply_text(message, parse_mode="Markdown")
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -112,3 +133,4 @@ class AdminHandler:
             except ValueError:
                 return None
         return None
+

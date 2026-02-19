@@ -96,9 +96,14 @@ class MistralClient:
             # Build system message
             system_content = self._settings.mistral.system_prompt
 
-            # Add current date to system prompt if query requires it
+            # Add current date to system prompt if query requires it or if
+            # always_append_date flag is enabled (both config and runtime must be enabled)
             # This ensures the model always sees the correct date for time-sensitive queries
-            if requires_current_date(prompt):
+            always_append = (
+                self._settings.mistral.always_append_date
+                and self._settings.access.always_append_date_enabled
+            )
+            if always_append or requires_current_date(prompt):
                 now = datetime.now()
                 # Format date in a clear, unambiguous way (in Russian for better understanding)
                 current_date_str = f"{now.day} {RUSSIAN_MONTHS[now.month - 1]} {now.year} года"
@@ -248,7 +253,12 @@ class MistralClient:
             # Build system message (same logic as generate)
             system_content = self._settings.mistral.system_prompt
 
-            if requires_current_date(prompt):
+            # Check both config and runtime flags for always_append_date
+            always_append = (
+                self._settings.mistral.always_append_date
+                and self._settings.access.always_append_date_enabled
+            )
+            if always_append or requires_current_date(prompt):
                 now = datetime.now()
                 current_date_str = f"{now.day} {RUSSIAN_MONTHS[now.month - 1]} {now.year} года"
                 current_time = now.strftime("%H:%M")

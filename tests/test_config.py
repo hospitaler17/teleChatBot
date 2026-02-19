@@ -17,11 +17,13 @@ def test_defaults() -> None:
     assert settings.mistral.model == "mistral-small-latest"
     assert settings.mistral.max_tokens == 1024
     assert settings.mistral.system_prompt == ""
+    assert settings.mistral.always_append_date is False
     assert settings.bot.language == "ru"
     assert settings.access.allowed_user_ids == []
     assert settings.access.allowed_chat_ids == []
     assert settings.access.reactions_enabled is True  # Default
-    assert settings.reactions.enabled is False  # Default - disabled to avoid behavioral change
+    assert settings.access.always_append_date_enabled is True  # Default
+    assert settings.reactions.enabled is False  # Default - disabled
     assert settings.reactions.model == "mistral-small-latest"
     assert settings.reactions.probability == 0.3
     assert settings.reactions.min_words == 5
@@ -36,6 +38,7 @@ def test_load_from_yaml(tmp_path: Path) -> None:
           model: mistral-large-latest
           temperature: 0.5
           system_prompt: "You are a helpful assistant."
+          always_append_date: true
         bot:
           username: testbot
         admin:
@@ -63,6 +66,7 @@ def test_load_from_yaml(tmp_path: Path) -> None:
     assert settings.mistral.model == "mistral-large-latest"
     assert settings.mistral.temperature == 0.5
     assert settings.mistral.system_prompt == "You are a helpful assistant."
+    assert settings.mistral.always_append_date is True
     assert settings.bot.username == "testbot"
     assert settings.admin.user_ids == [111]
     assert settings.access.allowed_user_ids == [100, 200]
@@ -81,12 +85,14 @@ def test_save_access(tmp_path: Path) -> None:
     settings.access.allowed_user_ids.append(42)
     settings.access.allowed_chat_ids.append(-999)
     settings.access.reactions_enabled = False
+    settings.access.always_append_date_enabled = False
     settings.save_access(config_dir=tmp_path)
 
     reloaded = AppSettings.load(config_dir=tmp_path)
     assert 42 in reloaded.access.allowed_user_ids
     assert -999 in reloaded.access.allowed_chat_ids
     assert reloaded.access.reactions_enabled is False
+    assert reloaded.access.always_append_date_enabled is False
 
 
 def test_unicode_decode_error(tmp_path: Path) -> None:

@@ -6,3 +6,9 @@ allowed_user_ids: []
 
 # Telegram chat IDs where the bot is allowed to respond
 allowed_chat_ids: []
+
+# Runtime toggle for automatic reactions (can be changed via admin commands)
+reactions_enabled: true
+
+# Runtime toggle for always appending date to system prompt (can be changed via admin commands)
+always_append_date_enabled: true

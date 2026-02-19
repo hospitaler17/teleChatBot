@@ -83,6 +83,7 @@ class MistralSettings(BaseModel):
         system_prompt: Optional system prompt to set the assistant's behavior
         enable_web_search: Enable web search to augment responses with current information
         conversation_history_size: Number of previous messages to include in context (default: 10)
+        always_append_date: Always append current date to system prompt, regardless of keywords
     """
 
     model: str = "mistral-small-latest"
@@ -91,6 +92,7 @@ class MistralSettings(BaseModel):
     system_prompt: str = ""
     enable_web_search: bool = False
     conversation_history_size: int = 10
+    always_append_date: bool = False
 
 
 class BotSettings(BaseModel):
@@ -119,6 +121,7 @@ class AccessSettings(BaseModel):
     allowed_user_ids: list[int] = Field(default_factory=list)
     allowed_chat_ids: list[int] = Field(default_factory=list)
     reactions_enabled: bool = True  # Runtime toggle for reactions
+    always_append_date_enabled: bool = True  # Runtime toggle for always appending date
 
 
 class ReactionSettings(BaseModel):
@@ -310,6 +313,7 @@ class AppSettings(BaseSettings):
             "allowed_user_ids": self.access.allowed_user_ids,
             "allowed_chat_ids": self.access.allowed_chat_ids,
             "reactions_enabled": self.access.reactions_enabled,
+            "always_append_date_enabled": self.access.always_append_date_enabled,
         }
         with open(access_path, "w", encoding="utf-8") as fh:
             yaml.safe_dump(data, fh, default_flow_style=False)
