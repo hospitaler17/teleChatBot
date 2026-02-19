@@ -13,22 +13,19 @@ def test_cli_handles_ctrl_c_windows():
     python = sys.executable
     cmd = [python, "-u", "-m", "src.main"]
 
-    # Provide minimal required environment for the subprocess
+    # Start from the current environment and override only what we need
     # Note: Using an obviously fake key for testing purposes only
-    env = {
-        "MISTRAL_API_KEY": "test-key-invalid-for-sigint-test",
-        "PATH": os.environ.get("PATH", ""),
-    }
+    env = os.environ.copy()
+    env["MISTRAL_API_KEY"] = "test-key-invalid-for-sigint-test"
 
     # Start subprocess in new process group so CTRL_C_EVENT can be sent
-    create_new_process_group = 0x00000200
     p = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         env=env,
-        creationflags=create_new_process_group,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
     )
 
     # Wait for the CLI banner to appear (with timeout)
