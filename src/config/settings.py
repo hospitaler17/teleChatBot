@@ -133,7 +133,7 @@ class ReactionSettings(BaseModel):
         moods: Dictionary mapping mood names to emoji reactions
     """
 
-    enabled: bool = True
+    enabled: bool = False
     model: str = "mistral-small-latest"
     system_prompt: str = (
         "Analyze the sentiment and mood of the user's message. "

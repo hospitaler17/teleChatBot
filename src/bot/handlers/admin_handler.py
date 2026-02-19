@@ -30,8 +30,6 @@ class AdminHandler:
     """
 
     def __init__(self, settings: AppSettings, access_filter: AccessFilter) -> None:
-        self._settings = settings
-        self._access = access_filter
         self._commands = AdminCommandService(settings, access_filter)
 
     # ------------------------------------------------------------------
@@ -45,7 +43,7 @@ class AdminHandler:
         if uid is None:
             await update.message.reply_text("Использование: /admin_add_user <user_id>")
             return
-        success, message = self._commands.add_user(uid, admin_id)
+        _success, message = self._commands.add_user(uid, admin_id)
         await update.message.reply_text(message)
 
     async def remove_user(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -55,7 +53,7 @@ class AdminHandler:
         if uid is None:
             await update.message.reply_text("Использование: /admin_remove_user <user_id>")
             return
-        success, message = self._commands.remove_user(uid, admin_id)
+        _success, message = self._commands.remove_user(uid, admin_id)
         await update.message.reply_text(message)
 
     async def add_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -65,7 +63,7 @@ class AdminHandler:
         if cid is None:
             await update.message.reply_text("Использование: /admin_add_chat <chat_id>")
             return
-        success, message = self._commands.add_chat(cid, admin_id)
+        _success, message = self._commands.add_chat(cid, admin_id)
         await update.message.reply_text(message)
 
     async def remove_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -75,31 +73,31 @@ class AdminHandler:
         if cid is None:
             await update.message.reply_text("Использование: /admin_remove_chat <chat_id>")
             return
-        success, message = self._commands.remove_chat(cid, admin_id)
+        _success, message = self._commands.remove_chat(cid, admin_id)
         await update.message.reply_text(message)
 
     async def list_access(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_list"""
         admin_id = update.effective_user.id if update.effective_user else 0
-        success, message = self._commands.list_access(admin_id)
+        _success, message = self._commands.list_access(admin_id)
         await update.message.reply_text(message, parse_mode="Markdown")
 
     async def reactions_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_reactions_on"""
         admin_id = update.effective_user.id if update.effective_user else 0
-        success, message = self._commands.reactions_on(admin_id)
+        _success, message = self._commands.reactions_on(admin_id)
         await update.message.reply_text(message)
 
     async def reactions_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_reactions_off"""
         admin_id = update.effective_user.id if update.effective_user else 0
-        success, message = self._commands.reactions_off(admin_id)
+        _success, message = self._commands.reactions_off(admin_id)
         await update.message.reply_text(message)
 
     async def reactions_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """/admin_reactions_status"""
         admin_id = update.effective_user.id if update.effective_user else 0
-        success, message = self._commands.reactions_status(admin_id)
+        _success, message = self._commands.reactions_status(admin_id)
         await update.message.reply_text(message, parse_mode="Markdown")
 
     # ------------------------------------------------------------------

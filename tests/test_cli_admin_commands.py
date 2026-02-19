@@ -11,7 +11,9 @@ from src.cli.cli_chat import CLIChat
 from src.config.settings import AppSettings
 
 
-def _settings(admin_ids: list[int] | None = None, allowed_users: list[int] | None = None) -> AppSettings:
+def _settings(
+    admin_ids: list[int] | None = None, allowed_users: list[int] | None = None
+) -> AppSettings:
     """Helper to create settings."""
     settings = AppSettings(
         mistral_api_key="fake-key",
@@ -71,3 +73,21 @@ class TestCLIChatAdminCommands:
         result = await chat.handle_message("/admin_list")
 
         assert result is None  # Command handling returns None
+
+    @pytest.mark.asyncio
+    async def test_cli_auto_grants_admin_when_empty(self, tmp_path: Path) -> None:
+        """CLI should automatically grant admin rights to user_id=1 when admin list is empty."""
+        # Start with no admin IDs
+        s = _settings(admin_ids=None)
+        assert s.admin.user_ids == []
+
+        with patch("src.config.settings.CONFIG_DIR", tmp_path):
+            chat = CLIChat(s)
+
+        # Verify user_id 1 was automatically added to admin list
+        assert 1 in s.admin.user_ids
+
+        # Verify admin commands work for user_id 1
+        result = await chat.handle_message("/admin_reactions_on")
+        assert result is None  # Command handling returns None
+        assert s.access.reactions_enabled is True

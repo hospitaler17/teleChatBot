@@ -6,24 +6,20 @@ by both Telegram bot handlers and CLI interface.
 
 from __future__ import annotations
 
-import logging
-
 from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
-
-logger = logging.getLogger(__name__)
 
 
 class AdminCommandService:
     """Service for processing admin commands independently of the interface.
-    
+
     This service handles all admin command logic and returns results as
     (success: bool, message: str) tuples for use in any interface (Telegram, CLI, etc).
     """
 
     def __init__(self, settings: AppSettings, access_filter: AccessFilter) -> None:
         """Initialize admin command service.
-        
+
         Args:
             settings: Application settings
             access_filter: Access control filter
@@ -33,10 +29,10 @@ class AdminCommandService:
 
     def is_admin(self, user_id: int) -> bool:
         """Check if user is an admin.
-        
+
         Args:
             user_id: Telegram user ID
-            
+
         Returns:
             True if user is an admin, False otherwise
         """
@@ -44,11 +40,11 @@ class AdminCommandService:
 
     def add_user(self, user_id: int, admin_id: int) -> tuple[bool, str]:
         """Add a user to the allowed list.
-        
+
         Args:
             user_id: User ID to add
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -64,11 +60,11 @@ class AdminCommandService:
 
     def remove_user(self, user_id: int, admin_id: int) -> tuple[bool, str]:
         """Remove a user from the allowed list.
-        
+
         Args:
             user_id: User ID to remove
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -84,11 +80,11 @@ class AdminCommandService:
 
     def add_chat(self, chat_id: int, admin_id: int) -> tuple[bool, str]:
         """Add a chat to the allowed list.
-        
+
         Args:
             chat_id: Chat ID to add
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -104,11 +100,11 @@ class AdminCommandService:
 
     def remove_chat(self, chat_id: int, admin_id: int) -> tuple[bool, str]:
         """Remove a chat from the allowed list.
-        
+
         Args:
             chat_id: Chat ID to remove
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -124,10 +120,10 @@ class AdminCommandService:
 
     def list_access(self, admin_id: int) -> tuple[bool, str]:
         """Get current access lists.
-        
+
         Args:
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -153,10 +149,10 @@ class AdminCommandService:
 
     def reactions_on(self, admin_id: int) -> tuple[bool, str]:
         """Enable automatic message reactions.
-        
+
         Args:
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -169,10 +165,10 @@ class AdminCommandService:
 
     def reactions_off(self, admin_id: int) -> tuple[bool, str]:
         """Disable automatic message reactions.
-        
+
         Args:
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -185,10 +181,10 @@ class AdminCommandService:
 
     def reactions_status(self, admin_id: int) -> tuple[bool, str]:
         """Get current reactions status and settings.
-        
+
         Args:
             admin_id: ID of the admin executing the command
-            
+
         Returns:
             Tuple of (success, message)
         """
@@ -216,10 +212,10 @@ class AdminCommandService:
 
 def _format_list(items: list) -> str:
     """Format a list of items for display.
-    
+
     Args:
         items: List of items to format
-        
+
     Returns:
         Formatted string with bullet points
     """

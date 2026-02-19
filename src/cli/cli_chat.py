@@ -30,8 +30,12 @@ class CLIChat:
         self.settings = settings
         self.client = MistralClient(settings)
         # Fixed user ID for CLI sessions (reserved for local testing)
-        # This user ID is automatically added to admin list for full functionality
         self.user_id = 1
+        # Ensure the CLI user is present in the admin list so admin commands work in CLI mode
+        admin_user_ids = list(settings.admin.user_ids or [])
+        if self.user_id not in admin_user_ids:
+            admin_user_ids.append(self.user_id)
+            settings.admin.user_ids = admin_user_ids
         self.running = False
         # Initialize admin commands service
         access_filter = AccessFilter(settings)
@@ -131,24 +135,24 @@ class CLIChat:
 
         # Handle admin commands
         if user_input.lower() == "/admin_list":
-            success, message = self.admin_commands.list_access(self.user_id)
+            _success, message = self.admin_commands.list_access(self.user_id)
             # Remove markdown formatting for CLI display
             message = message.replace("*", "").replace("`", "")
             print(f"\n{message}\n")
             return None
 
         if user_input.lower() == "/admin_reactions_on":
-            success, message = self.admin_commands.reactions_on(self.user_id)
+            _success, message = self.admin_commands.reactions_on(self.user_id)
             print(f"\n{message}\n")
             return None
 
         if user_input.lower() == "/admin_reactions_off":
-            success, message = self.admin_commands.reactions_off(self.user_id)
+            _success, message = self.admin_commands.reactions_off(self.user_id)
             print(f"\n{message}\n")
             return None
 
         if user_input.lower() == "/admin_reactions_status":
-            success, message = self.admin_commands.reactions_status(self.user_id)
+            _success, message = self.admin_commands.reactions_status(self.user_id)
             # Remove markdown formatting for CLI display
             message = message.replace("*", "").replace("`", "")
             print(f"\n{message}\n")
