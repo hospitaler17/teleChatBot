@@ -11,7 +11,9 @@ from src.cli.cli_chat import CLIChat
 from src.config.settings import AppSettings
 
 
-def _settings(admin_ids: list[int] | None = None, allowed_users: list[int] | None = None) -> AppSettings:
+def _settings(
+    admin_ids: list[int] | None = None, allowed_users: list[int] | None = None
+) -> AppSettings:
     """Helper to create settings."""
     settings = AppSettings(
         mistral_api_key="fake-key",

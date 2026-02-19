@@ -46,7 +46,7 @@ def main():
     print("TELEGRAM MARKDOWN FORMATTING DEMONSTRATION")
     print("=" * 80)
     print()
-    
+
     for i, test in enumerate(test_cases, 1):
         print(f"\n📝 Test Case {i}: {test['name']}")
         print(f"{'─' * 80}")
@@ -59,7 +59,7 @@ def main():
         result = markdown_to_telegram(test['input'])
         print(f"  {repr(result)}")
         print()
-        
+
         # Show the differences
         if test['input'] != result:
             print("✅ CHANGES APPLIED:")
@@ -74,7 +74,7 @@ def main():
                 print("  • Code blocks protected from escaping")
         else:
             print("ℹ️  No changes needed")
-    
+
     print("\n" + "=" * 80)
     print("SUMMARY")
     print("=" * 80)

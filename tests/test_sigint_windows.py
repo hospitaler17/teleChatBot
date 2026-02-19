@@ -1,8 +1,8 @@
 import os
-import sys
-import time
 import signal
 import subprocess
+import sys
+import time
 
 import pytest
 
@@ -13,14 +13,21 @@ def test_cli_handles_ctrl_c_windows():
     python = sys.executable
     cmd = [python, "-u", "-m", "src.main"]
 
+    # Provide minimal required environment for the subprocess
+    env = {
+        "MISTRAL_API_KEY": "fake-test-key-for-sigint-test",
+        "PATH": os.environ.get("PATH", ""),
+    }
+
     # Start subprocess in new process group so CTRL_C_EVENT can be sent
-    CREATE_NEW_PROCESS_GROUP = 0x00000200
+    create_new_process_group = 0x00000200
     p = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        creationflags=CREATE_NEW_PROCESS_GROUP,
+        env=env,
+        creationflags=create_new_process_group,
     )
 
     # Wait for the CLI banner to appear (with timeout)
