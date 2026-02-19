@@ -204,7 +204,7 @@ bot:
 ```yaml
 # config/config.yaml
 mistral:
-  conversation_history_size: 10  # Сохранять последние 10 пар сообщений
+  conversation_history_size: 15  # Сохранять последние 15 пар сообщений
 ```
 
 Или через переменную окружения:

@@ -124,6 +124,7 @@ async def test_analyze_mood_success(mock_mistral: MagicMock, settings: AppSettin
     mock_choice.message = mock_message
     mock_response.choices = [mock_choice]
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_client.aclose = AsyncMock()
     mock_mistral.return_value = mock_client
 
     analyzer = ReactionAnalyzer(settings)
@@ -141,6 +142,7 @@ async def test_analyze_mood_no_choices(mock_mistral: MagicMock, settings: AppSet
     mock_response = MagicMock()
     mock_response.choices = None
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_client.aclose = AsyncMock()
     mock_mistral.return_value = mock_client
 
     analyzer = ReactionAnalyzer(settings)

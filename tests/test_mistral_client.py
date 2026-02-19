@@ -60,6 +60,7 @@ async def test_generate(mock_mistral: MagicMock, settings: AppSettings) -> None:
     mock_usage.completion_tokens = 15
     mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_client.aclose = AsyncMock()
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
@@ -111,6 +112,7 @@ async def test_generate_with_system_prompt(mock_mistral: MagicMock) -> None:
     mock_usage.completion_tokens = 8
     mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_client.aclose = AsyncMock()
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
@@ -153,6 +155,7 @@ async def test_generate_with_date_context(mock_mistral: MagicMock) -> None:
     mock_usage.completion_tokens = 6
     mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_client.aclose = AsyncMock()
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
@@ -197,6 +200,7 @@ async def test_generate_without_date_context(
     mock_usage.completion_tokens = 4
     mock_response.usage = mock_usage
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_client.aclose = AsyncMock()
     mock_mistral.return_value = mock_client
 
     client = MistralClient(settings)
