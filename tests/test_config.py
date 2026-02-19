@@ -21,7 +21,7 @@ def test_defaults() -> None:
     assert settings.access.allowed_user_ids == []
     assert settings.access.allowed_chat_ids == []
     assert settings.access.reactions_enabled is True  # Default
-    assert settings.reactions.enabled is True  # Default - enabled
+    assert settings.reactions.enabled is False  # Default - disabled to avoid behavioral change
     assert settings.reactions.model == "mistral-small-latest"
     assert settings.reactions.probability == 0.3
     assert settings.reactions.min_words == 5
