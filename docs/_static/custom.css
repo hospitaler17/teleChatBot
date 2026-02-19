@@ -1,0 +1,11 @@
+/* Custom CSS overrides for teleChatBot docs */
+
+/* Widen the content area slightly */
+.wy-nav-content {
+    max-width: 1000px;
+}
+
+/* Style code blocks */
+div.highlight pre {
+    font-size: 0.85em;
+}

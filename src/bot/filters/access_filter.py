@@ -22,6 +22,12 @@ class AccessFilter:
     """
 
     def __init__(self, settings: AppSettings) -> None:
+        """Initialize access filter.
+
+        Args:
+            settings: Application settings containing admin user IDs
+                and allowed users/chats lists.
+        """
         self._settings = settings
 
     # ------------------------------------------------------------------

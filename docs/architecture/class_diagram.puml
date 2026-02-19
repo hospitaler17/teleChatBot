@@ -1,0 +1,100 @@
+@startuml teleChatBot-class
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam defaultFontName "DejaVu Sans"
+
+title teleChatBot — Core Class Diagram
+
+class AppSettings {
+    +telegram_bot_token: str
+    +mistral_api_key: str
+    +mistral: MistralSettings
+    +bot: BotSettings
+    +admin: AdminSettings
+    +access: AccessSettings
+    +reactions: ReactionSettings
+    +{static} load(config_dir) : AppSettings
+    +save_access(config_dir)
+}
+
+class MistralSettings {
+    +model: str
+    +max_tokens: int
+    +temperature: float
+    +system_prompt: str
+    +enable_web_search: bool
+    +conversation_history_size: int
+    +always_append_date: bool
+}
+
+class BotSettings {
+    +username: str
+    +max_message_length: int
+    +enable_streaming: bool
+    +streaming_threshold: int
+    +streaming_update_interval: float
+}
+
+class MistralClient {
+    -_settings: AppSettings
+    -_memory: ConversationMemory
+    -_model_selector: ModelSelector
+    -_web_search: WebSearchClient
+    +generate(prompt, user_id) : GenerateResponse
+    +generate_stream(prompt, user_id) : AsyncIterator
+}
+
+class ConversationMemory {
+    +max_history: int
+    +history: dict
+    +add_message(user_id, role, content)
+    +get_messages(user_id) : list
+    +clear(user_id)
+}
+
+class ModelSelector {
+    -_default_model: str
+    +select_model(prompt, conversation_length, has_images) : str
+    +get_model_info(model_name) : ModelCharacteristics
+}
+
+class AccessFilter {
+    -_settings: AppSettings
+    +is_admin(user_id) : bool
+    +is_allowed_user(user_id) : bool
+    +is_allowed_chat(chat_id) : bool
+    +is_direct_request(message) : bool
+    +check(update) : bool
+}
+
+class AdminCommandService {
+    +add_user(user_id, admin_id) : tuple
+    +remove_user(user_id, admin_id) : tuple
+    +add_chat(chat_id, admin_id) : tuple
+    +list_access(admin_id) : tuple
+    +reactions_on(admin_id) : tuple
+    +reactions_off(admin_id) : tuple
+}
+
+class ReactionAnalyzer {
+    +should_analyze(text) : bool
+    +analyze_mood(text) : str | None
+    +get_reaction_emoji(mood) : str | None
+}
+
+class WebSearchClient {
+    +search(query, max_results) : list[SearchResult]
+}
+
+AppSettings *-- MistralSettings
+AppSettings *-- BotSettings
+MistralClient --> AppSettings
+MistralClient *-- ConversationMemory
+MistralClient --> ModelSelector
+MistralClient --> WebSearchClient
+AccessFilter --> AppSettings
+AdminCommandService --> AppSettings
+AdminCommandService --> AccessFilter
+ReactionAnalyzer --> AppSettings
+
+@enduml

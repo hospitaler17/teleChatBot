@@ -1,0 +1,2 @@
+# This file tells GitHub Pages not to process the docs with Jekyll.
+# Required because Sphinx generates files/folders starting with underscores.
