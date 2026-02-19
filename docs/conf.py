@@ -56,6 +56,31 @@ intersphinx_mapping = {
     "pydantic": ("https://docs.pydantic.dev/latest", None),
 }
 
+# -- Nitpick ignore ---------------------------------------------------
+# Suppress unresolvable cross-references for third-party libraries that
+# don't publish a Sphinx inventory, and for modules documented with
+# :no-index: to avoid duplicate-object warnings.
+nitpick_ignore = [
+    # yaml – no public Sphinx inventory
+    ("py:class", "yaml.error.YAMLError"),
+    ("py:class", "yaml.loader.SafeLoader"),
+    ("py:exc", "yaml.YAMLError"),
+    # typing generics – not exposed as py:data in stdlib docs
+    ("py:data", "typing.Any"),
+    ("py:data", "typing.Optional"),
+    ("py:data", "typing.Union"),
+    ("py:data", "Ellipsis"),
+    # src.config.settings uses :no-index: to prevent duplicate descriptions
+    ("py:class", "AppSettings"),
+    ("py:exc", "DuplicateKeyError"),
+]
+nitpick_ignore_regex = [
+    # python-telegram-bot – no Sphinx inventory
+    (r"py:class", r"telegram\..*"),
+    # All src.config.settings.* references (module documented with :no-index:)
+    (r"py:class", r"src\.config\.settings\..*"),
+]
+
 # -- PlantUML ---------------------------------------------------------
 # Try to use the system `plantuml` command; fall back to the jar if set.
 _plantuml_jar = os.environ.get("PLANTUML_JAR")
