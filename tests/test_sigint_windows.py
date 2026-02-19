@@ -15,6 +15,7 @@ def test_cli_handles_ctrl_c_windows():
     cmd = [python, "-u", "-m", "src.main"]
     config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
     original_config = config_path.read_text(encoding="utf-8") if config_path.exists() else None
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text("bot:\n  cli_mode: true\n", encoding="utf-8")
 
     # Start from the current environment and override only what we need
@@ -22,20 +23,22 @@ def test_cli_handles_ctrl_c_windows():
     env = os.environ.copy()
     env["MISTRAL_API_KEY"] = "test-key-invalid-for-sigint-test"
 
-    # Start subprocess in new process group so CTRL_C_EVENT can be sent
-    p = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=env,
-        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-    )
+    p = None
 
     # Wait for the CLI banner to appear (with timeout)
     start = time.time()
     banner_seen = False
     try:
+        # Start subprocess in new process group so CTRL_C_EVENT can be sent
+        p = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+
         while time.time() - start < 15:
             line = p.stdout.readline()
             if not line:
