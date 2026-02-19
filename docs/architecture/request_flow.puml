@@ -1,5 +1,4 @@
 @startuml teleChatBot-request-flow
-!theme plain
 skinparam defaultFontName "DejaVu Sans"
 
 title teleChatBot — Incoming Message Processing Flow

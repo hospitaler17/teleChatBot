@@ -1,5 +1,4 @@
 @startuml teleChatBot-overview
-!theme plain
 skinparam componentStyle rectangle
 skinparam defaultFontName "DejaVu Sans"
 

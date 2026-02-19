@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_bot(settings: AppSettings) -> Application:
-    """Build and return a fully configured :class:`Application`."""
+    """Build and return a fully configured ``Application``."""
     mistral_client = MistralClient(settings)
     access_filter = AccessFilter(settings)
 

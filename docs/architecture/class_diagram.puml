@@ -1,5 +1,4 @@
 @startuml teleChatBot-class
-!theme plain
 skinparam classAttributeIconSize 0
 skinparam defaultFontName "DejaVu Sans"
 

@@ -192,7 +192,7 @@ class AppSettings(BaseSettings):
     """Root application settings.
 
     Secrets come from environment variables; everything else is loaded
-    from YAML configuration files via :meth:`load`.
+    from YAML configuration files via the ``load()`` class method.
     """
 
     model_config = SettingsConfigDict(env_prefix="", env_file=".env", extra="ignore")
