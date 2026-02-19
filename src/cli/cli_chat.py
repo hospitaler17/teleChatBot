@@ -76,6 +76,8 @@ class CLIChat:
         print("    /admin_reactions_status - Show reactions configuration")
         print("=" * 70)
         print()
+        # Flush stdout to ensure banner is visible immediately, especially on Windows
+        sys.stdout.flush()
 
     def print_help(self) -> None:
         """Print help message."""
@@ -214,6 +216,7 @@ class CLIChat:
         self.running = True
 
         print("Type your message and press Enter. Use /help for commands.\n")
+        sys.stdout.flush()
 
         while self.running:
             try:

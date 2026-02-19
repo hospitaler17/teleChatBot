@@ -17,6 +17,7 @@ def test_cli_handles_ctrl_c_windows():
     # Note: Using an obviously fake key for testing purposes only
     env = os.environ.copy()
     env["MISTRAL_API_KEY"] = "test-key-invalid-for-sigint-test"
+    env["BOT__CLI_MODE"] = "true"
 
     # Start subprocess in new process group so CTRL_C_EVENT can be sent
     p = subprocess.Popen(
