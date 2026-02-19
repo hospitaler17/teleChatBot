@@ -32,8 +32,8 @@ class CLIChat:
         # Fixed user ID for CLI sessions (reserved for local testing)
         self.user_id = 1
         # Ensure the CLI user is present in the admin list so admin commands work in CLI mode
-        if self.user_id not in (settings.admin.user_ids or []):
-            admin_user_ids = list(settings.admin.user_ids or [])
+        admin_user_ids = list(settings.admin.user_ids or [])
+        if self.user_id not in admin_user_ids:
             admin_user_ids.append(self.user_id)
             settings.admin.user_ids = admin_user_ids
         self.running = False

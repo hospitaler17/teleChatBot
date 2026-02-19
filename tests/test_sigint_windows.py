@@ -14,8 +14,9 @@ def test_cli_handles_ctrl_c_windows():
     cmd = [python, "-u", "-m", "src.main"]
 
     # Provide minimal required environment for the subprocess
+    # Note: Using an obviously fake key for testing purposes only
     env = {
-        "MISTRAL_API_KEY": "fake-test-key-for-sigint-test",
+        "MISTRAL_API_KEY": "test-key-invalid-for-sigint-test",
         "PATH": os.environ.get("PATH", ""),
     }
 
