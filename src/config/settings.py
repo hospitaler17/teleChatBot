@@ -84,6 +84,8 @@ class MistralSettings(BaseModel):
         enable_web_search: Enable web search to augment responses with current information
         conversation_history_size: Number of previous messages to include in context (default: 10)
         always_append_date: Always append current date to system prompt, regardless of keywords
+        reasoning_mode: Enable chain-of-thought reasoning mode — adds a step-by-step thinking
+            instruction to the system prompt for more detailed, explained responses
     """
 
     model: str = "mistral-small-latest"
@@ -93,6 +95,7 @@ class MistralSettings(BaseModel):
     enable_web_search: bool = False
     conversation_history_size: int = 10
     always_append_date: bool = False
+    reasoning_mode: bool = False
 
 
 class BotSettings(BaseModel):
@@ -144,12 +147,15 @@ class AccessSettings(BaseModel):
         always_append_date_enabled: Runtime toggle for appending the current date
             to the system prompt. Both this flag AND
             ``MistralSettings.always_append_date`` must be ``True``.
+        reasoning_mode_enabled: Runtime toggle for chain-of-thought reasoning mode.
+            Both this flag AND ``MistralSettings.reasoning_mode`` must be ``True``.
     """
 
     allowed_user_ids: list[int] = Field(default_factory=list)
     allowed_chat_ids: list[int] = Field(default_factory=list)
     reactions_enabled: bool = True  # Runtime toggle for reactions
     always_append_date_enabled: bool = True  # Runtime toggle for always appending date
+    reasoning_mode_enabled: bool = True  # Runtime toggle for chain-of-thought reasoning
 
 
 class ReactionSettings(BaseModel):
@@ -342,6 +348,7 @@ class AppSettings(BaseSettings):
             "allowed_chat_ids": self.access.allowed_chat_ids,
             "reactions_enabled": self.access.reactions_enabled,
             "always_append_date_enabled": self.access.always_append_date_enabled,
+            "reasoning_mode_enabled": self.access.reasoning_mode_enabled,
         }
         with open(access_path, "w", encoding="utf-8") as fh:
             yaml.safe_dump(data, fh, default_flow_style=False)

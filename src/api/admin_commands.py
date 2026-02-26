@@ -145,12 +145,19 @@ class AdminCommandService:
         date_effective = date_config_enabled and date_runtime_enabled
         date_status = "Включено ✅" if date_effective else "Выключено ❌"
 
+        # Show effective reasoning mode status (both config and runtime must be enabled)
+        reasoning_config_enabled = self._settings.mistral.reasoning_mode
+        reasoning_runtime_enabled = self._settings.access.reasoning_mode_enabled
+        reasoning_effective = reasoning_config_enabled and reasoning_runtime_enabled
+        reasoning_status = "Включён ✅" if reasoning_effective else "Выключен ❌"
+
         message = (
             "📋 *Текущие настройки доступа:*\n\n"
             f"*Пользователи:*\n{_format_list(users)}\n\n"
             f"*Чаты:*\n{_format_list(chats)}\n\n"
             f"*Реакции:* {reactions_status}\n"
-            f"*Добавление даты:* {date_status}"
+            f"*Добавление даты:* {date_status}\n"
+            f"*Режим рассуждения (CoT):* {reasoning_status}"
         )
         return True, message
 
@@ -275,6 +282,67 @@ class AdminCommandService:
             f"Если включено, текущая дата всегда добавляется к системному промпту, "
             f"даже если ключевые слова не обнаружены в запросе.\n\n"
             f"Это гарантирует, что бот всегда знает текущую дату."
+        )
+        return True, message
+
+
+    def reasoning_on(self, admin_id: int) -> tuple[bool, str]:
+        """Enable chain-of-thought reasoning mode.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        self._settings.access.reasoning_mode_enabled = True
+        self._settings.save_access()
+        return True, "✅ Режим рассуждения (chain-of-thought) включён."
+
+    def reasoning_off(self, admin_id: int) -> tuple[bool, str]:
+        """Disable chain-of-thought reasoning mode.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        self._settings.access.reasoning_mode_enabled = False
+        self._settings.save_access()
+        return True, "✅ Режим рассуждения (chain-of-thought) выключен."
+
+    def reasoning_status(self, admin_id: int) -> tuple[bool, str]:
+        """Get current reasoning mode status and settings.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        config_enabled = self._settings.mistral.reasoning_mode
+        runtime_enabled = self._settings.access.reasoning_mode_enabled
+        effective = config_enabled and runtime_enabled
+
+        status = "включён ✅" if effective else "выключен ❌"
+        message = (
+            f"*Статус режима рассуждения (CoT):* {status}\n\n"
+            f"*Настройки:*\n"
+            f"• Конфигурация: {'включена' if config_enabled else 'выключена'}\n"
+            f"• Рантайм-переключатель: {'включён' if runtime_enabled else 'выключен'}\n\n"
+            f"*Как работает:*\n"
+            f"Если включено, к системному промпту добавляется инструкция "
+            f"думать шаг за шагом и подробно объяснять рассуждения (chain-of-thought)."
         )
         return True, message
 

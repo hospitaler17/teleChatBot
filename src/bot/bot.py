@@ -53,6 +53,9 @@ def create_bot(settings: AppSettings) -> Application:
     app.add_handler(TGCommandHandler("admin_date_on", admin.date_on))
     app.add_handler(TGCommandHandler("admin_date_off", admin.date_off))
     app.add_handler(TGCommandHandler("admin_date_status", admin.date_status))
+    app.add_handler(TGCommandHandler("admin_reasoning_on", admin.reasoning_on))
+    app.add_handler(TGCommandHandler("admin_reasoning_off", admin.reasoning_off))
+    app.add_handler(TGCommandHandler("admin_reasoning_status", admin.reasoning_status))
 
     # Text messages and other message types (lowest priority)
     # Handles: text, forwarded messages, replies, media with captions

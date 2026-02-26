@@ -24,6 +24,14 @@ RUSSIAN_MONTHS = [
     "июля", "августа", "сентября", "октября", "ноября", "декабря"
 ]
 
+# Chain-of-thought reasoning instruction added to system prompt when reasoning mode is enabled
+REASONING_INSTRUCTION = (
+    "\n\n[REASONING MODE]\n"
+    "Думай шаг за шагом. Подробно объясняй свои рассуждения и решения. "
+    "Разбивай сложные задачи на этапы и явно показывай ход своих мыслей "
+    "перед тем, как дать окончательный ответ."
+)
+
 
 @dataclass
 class GenerateResponse:
@@ -87,6 +95,16 @@ class MistralClient:
 
             # Build system message
             system_content = self._settings.mistral.system_prompt
+
+            # Add chain-of-thought reasoning instruction when reasoning mode is active
+            # (both the config flag and the runtime toggle must be True)
+            reasoning_active = (
+                self._settings.mistral.reasoning_mode
+                and self._settings.access.reasoning_mode_enabled
+            )
+            if reasoning_active:
+                system_content += REASONING_INSTRUCTION
+                logger.info("Reasoning mode active: added CoT instruction to system prompt")
 
             # Add current date to system prompt if query requires it or if
             # always_append_date flag is enabled (both config and runtime must be enabled)
@@ -244,6 +262,15 @@ class MistralClient:
 
             # Build system message (same logic as generate)
             system_content = self._settings.mistral.system_prompt
+
+            # Add chain-of-thought reasoning instruction when reasoning mode is active
+            reasoning_active = (
+                self._settings.mistral.reasoning_mode
+                and self._settings.access.reasoning_mode_enabled
+            )
+            if reasoning_active:
+                system_content += REASONING_INSTRUCTION
+                logger.info("Reasoning mode active: added CoT instruction to system prompt")
 
             # Check both config and runtime flags for always_append_date
             always_append = (
