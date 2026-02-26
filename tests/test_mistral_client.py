@@ -615,7 +615,9 @@ async def test_generate_with_reasoning_mode_enabled(mock_mistral: MagicMock) -> 
 
 @patch("src.api.mistral_client.Mistral")
 @pytest.mark.asyncio
-async def test_generate_without_reasoning_mode(mock_mistral: MagicMock, settings: AppSettings) -> None:
+async def test_generate_without_reasoning_mode(
+    mock_mistral: MagicMock, settings: AppSettings
+) -> None:
     """generate() should NOT add CoT instruction when reasoning mode is disabled."""
     mock_client = _mock_client_with_response(mock_mistral)
 
