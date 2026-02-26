@@ -13,7 +13,7 @@ The bot is configured through two files and environment variables.
 
 Create a `.env` file in the project root:
 
-```dotenv
+```ini
 TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
 MISTRAL_API_KEY=your_mistral_key
 ```

@@ -27,15 +27,7 @@ RUSSIAN_MONTHS = [
 
 @dataclass
 class GenerateResponse:
-    """Response from model generation with metadata.
-
-    Attributes:
-        content: The generated text response
-        model: The model used for generation
-        input_tokens: Number of input tokens used
-        output_tokens: Number of output tokens generated
-        total_tokens: Total tokens used (input + output)
-    """
+    """Response from model generation with metadata."""
 
     content: str
     model: str
