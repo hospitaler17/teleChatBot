@@ -74,6 +74,9 @@ class CLIChat:
         print("    /admin_reactions_on  - Enable automatic reactions")
         print("    /admin_reactions_off - Disable automatic reactions")
         print("    /admin_reactions_status - Show reactions configuration")
+        print("    /admin_reasoning_on  - Enable chain-of-thought reasoning mode")
+        print("    /admin_reasoning_off - Disable chain-of-thought reasoning mode")
+        print("    /admin_reasoning_status - Show reasoning mode configuration")
         print("=" * 70)
         print()
         # Flush stdout to ensure banner is visible immediately, especially on Windows
@@ -94,6 +97,9 @@ class CLIChat:
         print("    /admin_reactions_on  - Enable automatic reactions")
         print("    /admin_reactions_off - Disable automatic reactions")
         print("    /admin_reactions_status - Show reactions configuration")
+        print("    /admin_reasoning_on  - Enable chain-of-thought reasoning mode")
+        print("    /admin_reasoning_off - Disable chain-of-thought reasoning mode")
+        print("    /admin_reasoning_status - Show reasoning mode configuration")
         print("=" * 70 + "\n")
 
     def print_stats(self) -> None:
@@ -155,6 +161,23 @@ class CLIChat:
 
         if user_input.lower() == "/admin_reactions_status":
             _success, message = self.admin_commands.reactions_status(self.user_id)
+            # Remove markdown formatting for CLI display
+            message = message.replace("*", "").replace("`", "")
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_reasoning_on":
+            _success, message = self.admin_commands.reasoning_on(self.user_id)
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_reasoning_off":
+            _success, message = self.admin_commands.reasoning_off(self.user_id)
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_reasoning_status":
+            _success, message = self.admin_commands.reasoning_status(self.user_id)
             # Remove markdown formatting for CLI display
             message = message.replace("*", "").replace("`", "")
             print(f"\n{message}\n")

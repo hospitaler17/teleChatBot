@@ -8,7 +8,7 @@ import pytest
 
 from src.api.mistral_client import GenerateResponse, MistralClient
 from src.api.model_selector import requires_current_date
-from src.config.settings import AppSettings, MistralSettings
+from src.config.settings import AccessSettings, AppSettings, MistralSettings
 
 
 @pytest.fixture
@@ -563,3 +563,118 @@ def test_should_use_web_search_without_search_keywords(
     assert not client._should_use_web_search("посмотри на этот код")
     assert not client._should_use_web_search("проверь этот код")
     assert not client._should_use_web_search("I can't find my keys")
+
+
+# ---------------------------------------------------------------------------
+# Reasoning mode (chain-of-thought) tests
+# ---------------------------------------------------------------------------
+
+
+def _mock_client_with_response(mock_mistral: MagicMock, content: str = "ok") -> MagicMock:
+    """Create a mock Mistral client that returns *content* from complete_async."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_message = MagicMock()
+    mock_message.content = content
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response.choices = [mock_choice]
+    mock_usage = MagicMock()
+    mock_usage.prompt_tokens = 5
+    mock_usage.completion_tokens = 5
+    mock_response.usage = mock_usage
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_mistral.return_value = mock_client
+    return mock_client
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_with_reasoning_mode_enabled(mock_mistral: MagicMock) -> None:
+    """generate() should add CoT instruction to system prompt when reasoning mode is active."""
+    settings = AppSettings(
+        mistral_api_key="fake-key",
+        mistral=MistralSettings(model="mistral-small-latest", reasoning_mode=True),
+        access=AccessSettings(reasoning_mode_enabled=True),
+    )
+    mock_client = _mock_client_with_response(mock_mistral)
+
+    client = MistralClient(settings)
+    result = await client.generate("Explain quantum entanglement")
+
+    assert isinstance(result, GenerateResponse)
+
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    # System message must be present and contain the CoT instruction
+    assert messages[0].role == "system"
+    assert "REASONING MODE" in messages[0].content
+    assert "шаг за шагом" in messages[0].content
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_without_reasoning_mode(
+    mock_mistral: MagicMock, settings: AppSettings
+) -> None:
+    """generate() should NOT add CoT instruction when reasoning mode is disabled."""
+    mock_client = _mock_client_with_response(mock_mistral)
+
+    client = MistralClient(settings)  # reasoning_mode defaults to False
+    result = await client.generate("Explain quantum entanglement")
+
+    assert isinstance(result, GenerateResponse)
+
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    system_content = messages[0].content if messages and messages[0].role == "system" else ""
+    assert "REASONING MODE" not in system_content
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_reasoning_mode_config_on_runtime_off(mock_mistral: MagicMock) -> None:
+    """generate() should NOT add CoT when config is True but runtime toggle is False."""
+    settings = AppSettings(
+        mistral_api_key="fake-key",
+        mistral=MistralSettings(model="mistral-small-latest", reasoning_mode=True),
+        access=AccessSettings(reasoning_mode_enabled=False),  # Runtime disabled
+    )
+    mock_client = _mock_client_with_response(mock_mistral)
+
+    client = MistralClient(settings)
+    result = await client.generate("Explain quantum entanglement")
+
+    assert isinstance(result, GenerateResponse)
+
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    system_content = messages[0].content if messages and messages[0].role == "system" else ""
+    assert "REASONING MODE" not in system_content
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_reasoning_mode_with_existing_system_prompt(mock_mistral: MagicMock) -> None:
+    """CoT instruction should be appended after any existing system prompt."""
+    settings = AppSettings(
+        mistral_api_key="fake-key",
+        mistral=MistralSettings(
+            model="mistral-small-latest",
+            system_prompt="You are a helpful assistant.",
+            reasoning_mode=True,
+        ),
+        access=AccessSettings(reasoning_mode_enabled=True),
+    )
+    mock_client = _mock_client_with_response(mock_mistral)
+
+    client = MistralClient(settings)
+    await client.generate("What is 2+2?")
+
+    _, kwargs = mock_client.chat.complete_async.call_args
+    messages = kwargs["messages"]
+    system_content = messages[0].content
+    assert "You are a helpful assistant." in system_content
+    assert "REASONING MODE" in system_content

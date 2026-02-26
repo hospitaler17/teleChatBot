@@ -123,3 +123,68 @@ class TestAdminCommandService:
         assert service.is_admin(1) is True
         assert service.is_admin(2) is True
         assert service.is_admin(99) is False
+
+    def test_reasoning_on_as_admin(self, tmp_path: Path) -> None:
+        """reasoning_on should enable reasoning mode when caller is admin."""
+        s = _settings(admin_ids=[1])
+        s.access.reasoning_mode_enabled = False
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            success, message = service.reasoning_on(admin_id=1)
+
+        assert success is True
+        assert "включён" in message
+        assert s.access.reasoning_mode_enabled is True
+
+    def test_reasoning_off_as_admin(self, tmp_path: Path) -> None:
+        """reasoning_off should disable reasoning mode when caller is admin."""
+        s = _settings(admin_ids=[1])
+        s.access.reasoning_mode_enabled = True
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            success, message = service.reasoning_off(admin_id=1)
+
+        assert success is True
+        assert "выключен" in message
+        assert s.access.reasoning_mode_enabled is False
+
+    def test_reasoning_on_rejected_for_non_admin(self) -> None:
+        """reasoning_on should reject when caller is not admin."""
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        success, message = service.reasoning_on(admin_id=99)
+
+        assert success is False
+        assert "прав администратора" in message
+
+    def test_reasoning_status_as_admin(self) -> None:
+        """reasoning_status should return status when caller is admin."""
+        s = _settings(admin_ids=[1])
+        s.mistral.reasoning_mode = True
+        s.access.reasoning_mode_enabled = True
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        success, message = service.reasoning_status(admin_id=1)
+
+        assert success is True
+        assert "включён" in message
+
+    def test_list_access_includes_reasoning_status(self) -> None:
+        """list_access should include reasoning mode status in output."""
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        success, message = service.list_access(admin_id=1)
+
+        assert success is True
+        assert "CoT" in message or "рассуждения" in message

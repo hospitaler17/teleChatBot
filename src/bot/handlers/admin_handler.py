@@ -30,6 +30,9 @@ class AdminHandler:
     /admin_date_on                – enable always appending date to system prompt
     /admin_date_off               – disable always appending date to system prompt
     /admin_date_status            – show date appending status and configuration
+    /admin_reasoning_on           – enable chain-of-thought reasoning mode
+    /admin_reasoning_off          – disable chain-of-thought reasoning mode
+    /admin_reasoning_status       – show reasoning mode status and configuration
     """
 
     def __init__(self, settings: AppSettings, access_filter: AccessFilter) -> None:
@@ -119,6 +122,24 @@ class AdminHandler:
         """/admin_date_status"""
         admin_id = update.effective_user.id if update.effective_user else 0
         _success, message = self._commands.date_status(admin_id)
+        await update.message.reply_text(message, parse_mode="Markdown")
+
+    async def reasoning_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_reasoning_on"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.reasoning_on(admin_id)
+        await update.message.reply_text(message)
+
+    async def reasoning_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_reasoning_off"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.reasoning_off(admin_id)
+        await update.message.reply_text(message)
+
+    async def reasoning_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_reasoning_status"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.reasoning_status(admin_id)
         await update.message.reply_text(message, parse_mode="Markdown")
 
     # ------------------------------------------------------------------
