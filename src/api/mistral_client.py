@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -41,6 +41,7 @@ class GenerateResponse:
     model: str
     input_tokens: int = 0
     output_tokens: int = 0
+    source_urls: list[str] = field(default_factory=list)
 
     @property
     def total_tokens(self) -> int:
@@ -164,12 +165,14 @@ class MistralClient:
                     logger.debug(f"Added date context to conversation memory for user {user_id}")
 
             # Perform web search if enabled and query seems to need it
-            web_results = ""
+            web_results = None
+            source_urls: list[str] = []
             if self._web_search and self._should_use_web_search(prompt):
                 logger.info("Performing web search for query")
                 web_results = await self._web_search.search(prompt, count=3)
                 if web_results:
-                    system_content += f"\n\nWeb search results:\n{web_results}"
+                    system_content += f"\n\nWeb search results:\n{web_results.text}"
+                    source_urls = web_results.urls
                     logger.info("Added web search results to context")
 
             # Add system message if present
@@ -250,6 +253,7 @@ class MistralClient:
                 model=selected_model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
+                source_urls=source_urls,
             )
         except (ValueError, TypeError):
             # Re-raise validation errors with their specific messages
@@ -264,7 +268,7 @@ class MistralClient:
         prompt: str,
         user_id: Optional[int] = None,
         image_urls: Optional[list[str]] = None,
-    ) -> AsyncIterator[tuple[str, str, bool]]:
+    ) -> AsyncIterator[tuple[str, str, bool, list[str]]]:
         """
         Stream response from Mistral model progressively.
 
@@ -274,10 +278,11 @@ class MistralClient:
             image_urls: Optional list of image data URIs (base64) or URLs for vision
 
         Yields:
-            Tuples of (chunk_content, accumulated_content, is_final)
+            Tuples of (chunk_content, accumulated_content, is_final, source_urls)
             - chunk_content: New text fragment received
             - accumulated_content: Complete text so far
             - is_final: True on the last chunk with final metadata
+            - source_urls: List of source URLs (populated only in the final chunk)
         """
         try:
             messages = []
@@ -330,11 +335,13 @@ class MistralClient:
                     )
 
             # Perform web search if enabled
+            source_urls: list[str] = []
             if self._web_search and self._should_use_web_search(prompt):
                 logger.info("Performing web search for query")
                 web_results = await self._web_search.search(prompt, count=3)
                 if web_results:
-                    system_content += f"\n\nWeb search results:\n{web_results}"
+                    system_content += f"\n\nWeb search results:\n{web_results.text}"
+                    source_urls = web_results.urls
                     logger.info("Added web search results to context")
 
             if system_content:
@@ -391,7 +398,7 @@ class MistralClient:
                             content_delta = getattr(delta, "content", None)
                             if content_delta:
                                 accumulated_content += content_delta
-                                yield (content_delta, accumulated_content, False)
+                                yield (content_delta, accumulated_content, False, [])
 
                     # Extract usage information if present (usually in the last chunk)
                     usage = getattr(data, "usage", None)
@@ -404,7 +411,7 @@ class MistralClient:
                 f"Streaming completed: {output_tokens} output tokens "
                 f"(input: {input_tokens}, total: {input_tokens + output_tokens})"
             )
-            yield ("", accumulated_content, True)
+            yield ("", accumulated_content, True, source_urls)
 
         except Exception:
             logger.exception("Mistral streaming API call failed")
