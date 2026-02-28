@@ -206,8 +206,10 @@ class CLIChat:
                 print(bot_label, end='', flush=True)
                 accumulated_content = ""
 
-                async for chunk_content, full_content, is_final in self.client.generate_stream(
-                    user_input, user_id=self.user_id
+                async for chunk_content, full_content, is_final, _urls in (
+                    self.client.generate_stream(
+                        user_input, user_id=self.user_id
+                    )
                 ):
                     accumulated_content = full_content
                     if chunk_content:
