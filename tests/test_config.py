@@ -247,3 +247,26 @@ def test_access_yaml_wrong_root_type(tmp_path: Path) -> None:
     error_msg = str(exc_info.value)
     assert "mapping" in error_msg.lower() or "dictionary" in error_msg.lower()
     assert "list" in error_msg.lower()
+
+
+def test_status_messages_defaults() -> None:
+    """StatusMessages should have sensible defaults."""
+    settings = AppSettings.load(config_dir=Path("/tmp/nonexistent"))
+    assert settings.status_messages.thinking == "💭 Думаю..."
+    assert settings.status_messages.searching == "🔎 Выполняю поиск..."
+
+
+def test_status_messages_from_yaml(tmp_path: Path) -> None:
+    """StatusMessages should load custom values from YAML."""
+    config_yaml = tmp_path / "config.yaml"
+    config_yaml.write_text(
+        textwrap.dedent("""\
+        status_messages:
+          thinking: "⏳ Processing..."
+          searching: "🌐 Searching the web..."
+        """)
+    )
+
+    settings = AppSettings.load(config_dir=tmp_path)
+    assert settings.status_messages.thinking == "⏳ Processing..."
+    assert settings.status_messages.searching == "🌐 Searching the web..."

@@ -188,6 +188,17 @@ class CLIChat:
             # Add user message to history
             self.client._memory.add_message(self.user_id, "user", user_input)
 
+            # Determine and display status message
+            status_messages = self.settings.status_messages
+            if (
+                self.client._web_search
+                and self.client._should_use_web_search(user_input)
+            ):
+                status_text = status_messages.searching
+            else:
+                status_text = status_messages.thinking
+            print(f"\n{status_text}")
+
             # Check if streaming is enabled
             if self.settings.bot.enable_streaming:
                 # Use streaming mode

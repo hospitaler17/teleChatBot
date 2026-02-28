@@ -111,14 +111,24 @@ class TestMessageHandler:
                 output_tokens=10,
             )
         )
+        mistral._web_search = None
+        mistral._should_use_web_search = MagicMock(return_value=False)
         af = AccessFilter(s)
         handler = MessageHandler(s, mistral, af)
 
         update = _update(user_id=1, text="ping")
+        # Make reply_text return a mock message so status edit works
+        status_msg = AsyncMock()
+        status_msg.edit_text = AsyncMock()
+        update.message.reply_text = AsyncMock(return_value=status_msg)
         ctx = MagicMock()
         ctx.bot.send_chat_action = AsyncMock()
         await handler.handle(update, ctx)
-        update.message.reply_text.assert_awaited_once_with(
+        # First call sends status, second is not needed since edit replaces it
+        calls = update.message.reply_text.call_args_list
+        assert calls[0][0][0] == s.status_messages.thinking
+        # The response is edited into the status message
+        status_msg.edit_text.assert_awaited_once_with(
             "response text", parse_mode="Markdown"
         )
 
