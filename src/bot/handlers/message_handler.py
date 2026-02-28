@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 MSG_ERROR = "⚠️ Произошла ошибка при обращении к модели. Попробуйте позже."
 MSG_STREAMING_INDICATOR = "⏳ Генерация..."
 MSG_MULTI_PART_PREFIX = "часть"  # Used as: "(часть 2/3)"
+MSG_SEARCH_UNAVAILABLE = "⚠️ _Поиск временно недоступен. Отвечаю на основе имеющихся знаний._\n\n"
 
 # Label for the sources block appended to search responses
 MSG_SOURCES_HEADER = "Источники"
@@ -352,6 +353,9 @@ class MessageHandler:
                     prompt, user_id=context_id, image_urls=image_urls
                 )
                 response_text = response.content
+                if response.search_unavailable:
+                    logger.info("Search was unavailable; prepending notice to response")
+                    response_text = MSG_SEARCH_UNAVAILABLE + response_text
                 source_urls_block = _format_source_urls(response.source_urls)
                 if source_urls_block:
                     response_text += source_urls_block
