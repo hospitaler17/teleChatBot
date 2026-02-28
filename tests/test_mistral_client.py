@@ -678,3 +678,53 @@ async def test_generate_reasoning_mode_with_existing_system_prompt(mock_mistral:
     system_content = messages[0].content
     assert "You are a helpful assistant." in system_content
     assert "REASONING MODE" in system_content
+
+
+# ---------------------------------------------------------------------------
+# Image / vision support tests
+# ---------------------------------------------------------------------------
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_with_images(mock_mistral: MagicMock, settings: AppSettings) -> None:
+    """generate() should use pixtral model and multimodal content when images are provided."""
+    mock_client = _mock_client_with_response(mock_mistral, content="I see a cat")
+
+    client = MistralClient(settings)
+    result = await client.generate(
+        "What is in this image?",
+        image_urls=["data:image/jpeg;base64,dGVzdA=="],
+    )
+    assert isinstance(result, GenerateResponse)
+    assert result.content == "I see a cat"
+
+    mock_client.chat.complete_async.assert_called_once()
+    _, kwargs = mock_client.chat.complete_async.call_args
+    # Should select pixtral model for vision
+    assert kwargs["model"] == "pixtral-12b-latest"
+    # Last message should have multimodal content (list of chunks)
+    user_msg = kwargs["messages"][-1]
+    assert isinstance(user_msg.content, list)
+    assert len(user_msg.content) == 2
+    assert user_msg.content[0].text == "What is in this image?"
+    assert user_msg.content[1].image_url == "data:image/jpeg;base64,dGVzdA=="
+
+
+@patch("src.api.mistral_client.Mistral")
+@pytest.mark.asyncio
+async def test_generate_without_images_uses_text_content(
+    mock_mistral: MagicMock, settings: AppSettings
+) -> None:
+    """generate() should use plain text content when no images are provided."""
+    mock_client = _mock_client_with_response(mock_mistral)
+
+    client = MistralClient(settings)
+    await client.generate("Hello")
+
+    _, kwargs = mock_client.chat.complete_async.call_args
+    # Should select default model (no images)
+    assert kwargs["model"] == "mistral-small-latest"
+    # Last message should have plain string content
+    user_msg = kwargs["messages"][-1]
+    assert user_msg.content == "Hello"

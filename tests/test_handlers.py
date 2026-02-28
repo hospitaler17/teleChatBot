@@ -35,6 +35,7 @@ def _update(user_id: int = 1, text: str = "hello", chat_type: str = "private") -
     update.message.chat.type = chat_type
     update.message.chat.id = user_id
     update.message.text = text
+    update.message.photo = None
     update.message.reply_to_message = None
     update.message.entities = None
     update.effective_user.id = user_id
@@ -145,6 +146,68 @@ class TestMessageHandler:
         ctx = MagicMock()
         await handler.handle(update, ctx)
         update.message.reply_text.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_handle_photo_message(self) -> None:
+        """Should pass image_urls to generate when photo is attached."""
+        from src.api.mistral_client import GenerateResponse
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        s.bot.enable_streaming = False
+
+        mistral = MagicMock()
+        mistral.generate = AsyncMock(
+            return_value=GenerateResponse(
+                content="I see a cat",
+                model="pixtral-12b-latest",
+                input_tokens=50,
+                output_tokens=10,
+            )
+        )
+        mistral._web_search = None
+        mistral._should_use_web_search = MagicMock(return_value=False)
+        af = AccessFilter(s)
+        handler = MessageHandler(s, mistral, af)
+
+        # Create update with photo
+        update = _update(user_id=1, text="")
+        update.message.text = None
+        update.message.caption = "What is this?"
+        # Simulate photo: list of PhotoSize objects
+        mock_photo = MagicMock()
+        mock_photo.file_id = "fake_file_id"
+        update.message.photo = [mock_photo]
+        update.message.video = None
+        update.message.audio = None
+        update.message.voice = None
+        update.message.document = None
+        update.message.sticker = None
+        update.message.animation = None
+        update.message.location = None
+        update.message.contact = None
+        update.message.invoice = None
+
+        # Mock file download
+        mock_file = AsyncMock()
+        mock_file.download_as_bytearray = AsyncMock(return_value=bytearray(b"\xff\xd8test"))
+
+        status_msg = AsyncMock()
+        status_msg.edit_text = AsyncMock()
+        update.message.reply_text = AsyncMock(return_value=status_msg)
+
+        ctx = MagicMock()
+        ctx.bot.send_chat_action = AsyncMock()
+        ctx.bot.get_file = AsyncMock(return_value=mock_file)
+
+        await handler.handle(update, ctx)
+
+        # Verify generate was called with image_urls
+        mistral.generate.assert_awaited_once()
+        call_kwargs = mistral.generate.call_args
+        assert call_kwargs.kwargs.get("image_urls") is not None
+        assert len(call_kwargs.kwargs["image_urls"]) == 1
+        assert call_kwargs.kwargs["image_urls"][0].startswith("data:image/jpeg;base64,")
 
 
 # ------------------------------------------------------------------

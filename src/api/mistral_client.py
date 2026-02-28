@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from mistralai import Mistral
-from mistralai.models import SystemMessage, UserMessage
+from mistralai.models import ImageURLChunk, SystemMessage, TextChunk, UserMessage
 
 from src.api.conversation_memory import ConversationMemory
 from src.api.model_selector import TOKEN_ESTIMATION_MULTIPLIER, ModelSelector, requires_current_date
@@ -78,7 +78,12 @@ class MistralClient:
             settings.mistral.conversation_history_size,
         )
 
-    async def generate(self, prompt: str, user_id: Optional[int] = None) -> GenerateResponse:
+    async def generate(
+        self,
+        prompt: str,
+        user_id: Optional[int] = None,
+        image_urls: Optional[list[str]] = None,
+    ) -> GenerateResponse:
         """
         Send *prompt* to the Mistral model and return the response with metadata.
 
@@ -86,6 +91,7 @@ class MistralClient:
             prompt: The user's message/question
             user_id: Context ID for conversation history tracking
                      (user_id for private chats, chat_id for groups)
+            image_urls: Optional list of image data URIs (base64) or URLs for vision
 
         Returns:
             GenerateResponse with content, model, and token usage information
@@ -174,14 +180,21 @@ class MistralClient:
                     )
 
             # Add current user message
+            has_images = bool(image_urls)
             logger.debug(f"Adding current user message to API: {prompt[:200]}...")
-            messages.append(UserMessage(role="user", content=prompt))
+            if has_images:
+                content_chunks: list[TextChunk | ImageURLChunk] = [TextChunk(text=prompt)]
+                for url in image_urls:
+                    content_chunks.append(ImageURLChunk(image_url=url))
+                messages.append(UserMessage(content=content_chunks))
+            else:
+                messages.append(UserMessage(role="user", content=prompt))
 
             # Select appropriate model based on request characteristics
             selected_model = self._model_selector.select_model(
                 prompt=prompt,
                 conversation_length=int(conversation_length),
-                has_images=False,  # Future enhancement: detect images in input
+                has_images=has_images,
             )
             logger.info(f"Selected model: {selected_model}")
 
@@ -241,7 +254,10 @@ class MistralClient:
             raise
 
     async def generate_stream(
-        self, prompt: str, user_id: Optional[int] = None
+        self,
+        prompt: str,
+        user_id: Optional[int] = None,
+        image_urls: Optional[list[str]] = None,
     ) -> AsyncIterator[tuple[str, str, bool]]:
         """
         Stream response from Mistral model progressively.
@@ -249,6 +265,7 @@ class MistralClient:
         Args:
             prompt: The user's message/question
             user_id: Context ID for conversation history tracking
+            image_urls: Optional list of image data URIs (base64) or URLs for vision
 
         Yields:
             Tuples of (chunk_content, accumulated_content, is_final)
@@ -331,13 +348,20 @@ class MistralClient:
                         f"conversation history for context {user_id}"
                     )
 
-            messages.append(UserMessage(role="user", content=prompt))
+            has_images = bool(image_urls)
+            if has_images:
+                content_chunks: list[TextChunk | ImageURLChunk] = [TextChunk(text=prompt)]
+                for url in image_urls:
+                    content_chunks.append(ImageURLChunk(image_url=url))
+                messages.append(UserMessage(content=content_chunks))
+            else:
+                messages.append(UserMessage(role="user", content=prompt))
 
             # Select appropriate model
             selected_model = self._model_selector.select_model(
                 prompt=prompt,
                 conversation_length=int(conversation_length),
-                has_images=False,
+                has_images=has_images,
             )
             logger.info(f"Selected model for streaming: {selected_model}")
 
