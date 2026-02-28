@@ -347,8 +347,8 @@ class MessageHandler:
                     message, status_text, parse_mode=None
                 )
 
-                _gen = self._router or self._mistral
-                response = await _gen.generate(
+                provider = self._router or self._mistral
+                response = await provider.generate(
                     prompt, user_id=context_id, image_urls=image_urls
                 )
                 response_text = response.content
@@ -416,9 +416,9 @@ class MessageHandler:
 
         try:
             source_urls: list[str] = []
-            _gen = self._router or self._mistral
+            provider = self._router or self._mistral
             async for chunk_content, full_content, is_final, chunk_urls in (
-                _gen.generate_stream(
+                provider.generate_stream(
                     prompt, user_id=context_id, image_urls=image_urls
                 )
             ):

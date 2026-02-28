@@ -94,7 +94,9 @@ class ProviderRouter:
                 last_exc = exc
 
         # All providers exhausted — re-raise the last error
-        raise last_exc  # type: ignore[misc]
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No providers available")
 
     async def generate_stream(
         self,
@@ -136,4 +138,6 @@ class ProviderRouter:
                 )
                 last_exc = exc
 
-        raise last_exc  # type: ignore[misc]
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("No providers available")

@@ -14,27 +14,18 @@ from src.config.settings import AppSettings
 
 logger = logging.getLogger(__name__)
 
-# Mapping from Mistral model categories to Groq equivalents
-_MISTRAL_TO_GROQ: dict[str, str] = {
-    "mistral-small-latest": "llama-3.3-70b-versatile",
-    "codestral-latest": "llama-3.3-70b-versatile",
-    "mistral-medium-latest": "llama-3.3-70b-versatile",
-    "mistral-large-latest": "llama-3.3-70b-versatile",
-    "pixtral-12b-latest": "llama-3.3-70b-versatile",
-}
-
 
 def _map_model(mistral_model: str, settings: AppSettings) -> str:
     """Map a Mistral model name to the appropriate Groq model.
 
     Uses explicit settings when available, otherwise falls back to the
-    built-in mapping table.
+    configured default Groq model.
     """
     if mistral_model in ("codestral-latest",):
         return settings.groq.code_model
     if mistral_model in ("mistral-large-latest", "mistral-medium-latest"):
         return settings.groq.large_model
-    return _MISTRAL_TO_GROQ.get(mistral_model, settings.groq.model)
+    return settings.groq.model
 
 
 class GroqClient:
