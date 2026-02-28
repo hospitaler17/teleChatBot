@@ -116,7 +116,7 @@ class TestCLIChatStatusMessages:
         chat.client._web_search = None
         chat.client._should_use_web_search = MagicMock(return_value=False)
 
-        result = await chat.handle_message("Hi")
+        await chat.handle_message("Hi")
 
         captured = capsys.readouterr()
         assert s.status_messages.thinking in captured.out
@@ -142,7 +142,7 @@ class TestCLIChatStatusMessages:
         chat.client._web_search = MagicMock()
         chat.client._should_use_web_search = MagicMock(return_value=True)
 
-        result = await chat.handle_message("новости сегодня")
+        await chat.handle_message("новости сегодня")
 
         captured = capsys.readouterr()
         assert s.status_messages.searching in captured.out
