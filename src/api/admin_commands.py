@@ -237,6 +237,7 @@ class AdminCommandService:
         if not self.is_admin(admin_id):
             return False, "⛔ У вас нет прав администратора."
 
+        self._settings.mistral.always_append_date = True
         self._settings.access.always_append_date_enabled = True
         self._settings.save_access()
         return True, "✅ Автоматическое добавление даты в системный промпт включено."
@@ -253,6 +254,7 @@ class AdminCommandService:
         if not self.is_admin(admin_id):
             return False, "⛔ У вас нет прав администратора."
 
+        self._settings.mistral.always_append_date = False
         self._settings.access.always_append_date_enabled = False
         self._settings.save_access()
         return True, "✅ Автоматическое добавление даты в системный промпт выключено."
@@ -300,6 +302,7 @@ class AdminCommandService:
         if not self.is_admin(admin_id):
             return False, "⛔ У вас нет прав администратора."
 
+        self._settings.mistral.reasoning_mode = True
         self._settings.access.reasoning_mode_enabled = True
         self._settings.save_access()
         return True, "✅ Режим рассуждения (chain-of-thought) включён."
@@ -316,6 +319,7 @@ class AdminCommandService:
         if not self.is_admin(admin_id):
             return False, "⛔ У вас нет прав администратора."
 
+        self._settings.mistral.reasoning_mode = False
         self._settings.access.reasoning_mode_enabled = False
         self._settings.save_access()
         return True, "✅ Режим рассуждения (chain-of-thought) выключен."
