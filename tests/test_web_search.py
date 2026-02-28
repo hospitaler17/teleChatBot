@@ -23,17 +23,18 @@ from src.api.web_search import (
 
 
 def test_default_providers_without_google() -> None:
-    """Client without Google keys should have SearXNG + DuckDuckGo providers."""
+    """Client without Google keys should have SearXNG + Perplexity + DuckDuckGo providers."""
     client = WebSearchClient()
-    assert client.providers == [SearchProvider.SEARXNG, SearchProvider.DUCKDUCKGO]
+    assert client.providers == [SearchProvider.SEARXNG, SearchProvider.PERPLEXITY, SearchProvider.DUCKDUCKGO]
 
 
 def test_default_providers_with_google() -> None:
-    """Client with Google keys should have all three providers."""
+    """Client with Google keys should have all four providers."""
     client = WebSearchClient(google_api_key="key", google_search_engine_id="cx")
     assert client.providers == [
         SearchProvider.GOOGLE,
         SearchProvider.SEARXNG,
+        SearchProvider.PERPLEXITY,
         SearchProvider.DUCKDUCKGO,
     ]
 
@@ -226,6 +227,87 @@ async def test_duckduckgo_raises_after_max_ratelimit_retries() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Perplexity provider tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_search_perplexity_returns_results() -> None:
+    """_search_perplexity should parse results from the API response."""
+    client = WebSearchClient()
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "results": [
+            {"title": "Perplexity Title", "content": "Some content", "url": "https://perplexity.example.com"},
+        ]
+    }
+
+    with patch.object(client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response):
+        result = await client._search_perplexity("test query", 3)
+
+    assert "Perplexity Title" in result
+    assert "Some content" in result
+    assert "https://perplexity.example.com" in result
+
+
+@pytest.mark.asyncio
+async def test_search_perplexity_uses_snippet_fallback() -> None:
+    """_search_perplexity should fall back to 'snippet' when 'content' is absent."""
+    client = WebSearchClient()
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "results": [
+            {"title": "Title", "snippet": "Snippet text", "url": "https://example.com"},
+        ]
+    }
+
+    with patch.object(client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response):
+        result = await client._search_perplexity("test query", 3)
+
+    assert "Snippet text" in result
+
+
+@pytest.mark.asyncio
+async def test_search_perplexity_empty_results() -> None:
+    """_search_perplexity should return empty string when no results."""
+    client = WebSearchClient()
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"results": []}
+
+    with patch.object(client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response):
+        result = await client._search_perplexity("test query", 3)
+
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_search_falls_back_to_perplexity() -> None:
+    """search() should fall back to Perplexity when SearXNG fails."""
+    client = WebSearchClient()
+
+    async def fail_searxng(query: str, count: int) -> str:
+        raise Exception("SearXNG down")
+
+    async def ok_perplexity(query: str, count: int) -> str:
+        return "1. Perplexity Result\nContent\nИсточник: https://perplexity.example.com"
+
+    async def fail_ddg(query: str, count: int) -> str:
+        raise Exception("DDG down")
+
+    with (
+        patch.object(client, "_search_searxng", side_effect=fail_searxng),
+        patch.object(client, "_search_perplexity", side_effect=ok_perplexity),
+        patch.object(client, "_search_duckduckgo", side_effect=fail_ddg),
+    ):
+        result = await client.search("test query")
+
+    assert "Perplexity Result" in result
+
+
+# ---------------------------------------------------------------------------
 # Full search() fallback tests
 # ---------------------------------------------------------------------------
 
@@ -260,6 +342,7 @@ async def test_search_returns_empty_when_all_fail() -> None:
 
     with (
         patch.object(client, "_search_searxng", side_effect=fail),
+        patch.object(client, "_search_perplexity", side_effect=fail),
         patch.object(client, "_search_duckduckgo", side_effect=fail),
     ):
         result = await client.search("test query")
