@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import typing
 from enum import Enum
 from typing import Optional
 
@@ -124,7 +125,7 @@ class WebSearchClient:
 
     @staticmethod
     async def _retry_with_backoff(
-        coro_factory,  # noqa: ANN001 — callable returning awaitable
+        coro_factory: typing.Callable[[], typing.Awaitable[httpx.Response]],
         provider_name: str,
         max_retries: int = _MAX_RETRIES,
     ) -> httpx.Response:
