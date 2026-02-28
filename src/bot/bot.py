@@ -15,7 +15,7 @@ from telegram.ext import (
     MessageHandler as TGMessageHandler,
 )
 
-from src.api.mistral_client import MistralClient
+from src.api.provider_router import ProviderRouter
 from src.bot.filters.access_filter import AccessFilter
 from src.bot.handlers.admin_handler import AdminHandler
 from src.bot.handlers.command_handler import CommandHandler
@@ -27,12 +27,13 @@ logger = logging.getLogger(__name__)
 
 def create_bot(settings: AppSettings) -> Application:
     """Build and return a fully configured ``Application``."""
-    mistral_client = MistralClient(settings)
+    router = ProviderRouter(settings)
+    mistral_client = router.mistral
     access_filter = AccessFilter(settings)
 
     # Handlers
     cmd = CommandHandler(access_filter, settings.bot.username)
-    msg = MessageHandler(settings, mistral_client, access_filter)
+    msg = MessageHandler(settings, mistral_client, access_filter, provider_router=router)
     admin = AdminHandler(settings, access_filter)
 
     app = Application.builder().token(settings.telegram_bot_token).build()

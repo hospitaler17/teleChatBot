@@ -101,6 +101,26 @@ class MistralSettings(BaseModel):
     reasoning_mode: bool = False
 
 
+class GroqSettings(BaseModel):
+    """Settings for the Groq API provider.
+
+    Attributes:
+        enabled: Whether Groq provider is available for load balancing.
+        model: Default Groq model for simple queries.
+        max_tokens: Maximum number of tokens to generate.
+        temperature: Controls randomness (0.0 = deterministic, 1.0 = creative).
+        code_model: Model optimised for code-related queries.
+        large_model: Model for complex reasoning / long context.
+    """
+
+    enabled: bool = False
+    model: str = "llama-3.3-70b-versatile"
+    max_tokens: int = 1024
+    temperature: float = 0.7
+    code_model: str = "llama-3.3-70b-versatile"
+    large_model: str = "llama-3.3-70b-versatile"
+
+
 class BotSettings(BaseModel):
     """General bot behaviour settings.
 
@@ -220,10 +240,12 @@ class AppSettings(BaseSettings):
 
     telegram_bot_token: str = ""
     mistral_api_key: str = ""
+    groq_api_key: str = ""
     google_api_key: str = ""
     google_search_engine_id: str = ""
 
     mistral: MistralSettings = Field(default_factory=MistralSettings)
+    groq: GroqSettings = Field(default_factory=GroqSettings)
     bot: BotSettings = Field(default_factory=BotSettings)
     admin: AdminSettings = Field(default_factory=AdminSettings)
     access: AccessSettings = Field(default_factory=AccessSettings)
@@ -346,8 +368,16 @@ class AppSettings(BaseSettings):
             mistral_settings.enable_web_search,
         )
 
+        groq_settings = GroqSettings(**yaml_data.get("groq", {}))
+        logger.info(
+            "Groq settings - enabled: %s, model: %s",
+            groq_settings.enabled,
+            groq_settings.model,
+        )
+
         return cls(
             mistral=mistral_settings,
+            groq=groq_settings,
             bot=BotSettings(**yaml_data.get("bot", {})),
             admin=AdminSettings(**yaml_data.get("admin", {})),
             access=AccessSettings(**access_data),

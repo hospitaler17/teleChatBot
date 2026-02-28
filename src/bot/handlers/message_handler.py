@@ -13,6 +13,7 @@ from telegram.error import BadRequest, RetryAfter
 from telegram.ext import ContextTypes
 
 from src.api.mistral_client import MistralClient
+from src.api.provider_router import ProviderRouter
 from src.api.reaction_analyzer import ReactionAnalyzer
 from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
@@ -229,9 +230,11 @@ class MessageHandler:
         settings: AppSettings,
         mistral_client: MistralClient,
         access_filter: AccessFilter,
+        provider_router: ProviderRouter | None = None,
     ) -> None:
         self._settings = settings
         self._mistral = mistral_client
+        self._router: ProviderRouter | None = provider_router
         self._access = access_filter
         self._reaction_analyzer = ReactionAnalyzer(settings)
 
@@ -344,7 +347,8 @@ class MessageHandler:
                     message, status_text, parse_mode=None
                 )
 
-                response = await self._mistral.generate(
+                _gen = self._router or self._mistral
+                response = await _gen.generate(
                     prompt, user_id=context_id, image_urls=image_urls
                 )
                 response_text = response.content
@@ -412,8 +416,9 @@ class MessageHandler:
 
         try:
             source_urls: list[str] = []
+            _gen = self._router or self._mistral
             async for chunk_content, full_content, is_final, chunk_urls in (
-                self._mistral.generate_stream(
+                _gen.generate_stream(
                     prompt, user_id=context_id, image_urls=image_urls
                 )
             ):

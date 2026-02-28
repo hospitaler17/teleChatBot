@@ -1,5 +1,6 @@
 python-telegram-bot==21.10
 mistralai==1.12.2
+groq==0.25.0
 pydantic==2.10.6
 pydantic-settings==2.7.1
 PyYAML==6.0.2
