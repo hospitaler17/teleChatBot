@@ -117,11 +117,28 @@ def test_conversation_memory_empty_user():
     print("✅ test_conversation_memory_empty_user passed")
 
 
+def test_conversation_memory_close():
+    """Test that close shuts down the database connection."""
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
+    memory.add_message(user_id=1, role="user", content="hi")
+    memory.close()
+
+    # After closing, operations should raise an error
+    try:
+        memory.add_message(user_id=1, role="user", content="after close")
+        raise AssertionError("Expected ProgrammingError after close")
+    except Exception:
+        pass
+
+    print("✅ test_conversation_memory_close passed")
+
+
 if __name__ == "__main__":
     test_conversation_memory_basic()
     test_conversation_memory_max_history()
     test_conversation_memory_per_user()
     test_conversation_memory_clear()
     test_conversation_memory_empty_user()
+    test_conversation_memory_close()
 
     print("\n✅ All conversation memory tests passed!")

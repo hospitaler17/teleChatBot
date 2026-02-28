@@ -96,7 +96,7 @@ class MistralSettings(BaseModel):
     system_prompt: str = ""
     enable_web_search: bool = False
     conversation_history_size: int = 10
-    conversation_db_path: str = ""
+    conversation_db_path: str | None = None
     always_append_date: bool = False
     reasoning_mode: bool = False
 

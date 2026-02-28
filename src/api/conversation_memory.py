@@ -46,8 +46,9 @@ class ConversationMemory:
         if self._db_path != ":memory:":
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
 
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.commit()
         self._create_tables()
         logger.info(
             f"Conversation memory initialized with max_history={max_history}, "

@@ -58,7 +58,7 @@ class MistralClient:
         self._web_search: Optional[WebSearchClient] = None
         self._memory = ConversationMemory(
             max_history=settings.mistral.conversation_history_size,
-            db_path=settings.mistral.conversation_db_path or None,
+            db_path=settings.mistral.conversation_db_path,
         )
 
         # Initialize model selector for dynamic model selection
