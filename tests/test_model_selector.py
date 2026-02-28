@@ -60,7 +60,7 @@ def test_select_model_code_block(selector: ModelSelector) -> None:
 
 
 def test_select_model_complex_reasoning(selector: ModelSelector) -> None:
-    """Should select large model for complex reasoning tasks."""
+    """Should select medium model for complex reasoning tasks."""
     prompts = [
         "Analyze step by step why this approach is better",
         "Compare and evaluate these three solutions",
@@ -69,11 +69,11 @@ def test_select_model_complex_reasoning(selector: ModelSelector) -> None:
     ]
     for prompt in prompts:
         result = selector.select_model(prompt)
-        assert result == "mistral-large-latest", f"Failed for prompt: {prompt}"
+        assert result == "mistral-medium-latest", f"Failed for prompt: {prompt}"
 
 
 def test_select_model_long_content(selector: ModelSelector) -> None:
-    """Should select large model for long-form content requests."""
+    """Should select medium model for long-form content requests."""
     prompts = [
         "Write a detailed explanation of quantum computing",
         "Provide a comprehensive guide to machine learning",
@@ -81,7 +81,7 @@ def test_select_model_long_content(selector: ModelSelector) -> None:
     ]
     for prompt in prompts:
         result = selector.select_model(prompt)
-        assert result == "mistral-large-latest"
+        assert result == "mistral-medium-latest"
 
 
 def test_select_model_simple_query(selector: ModelSelector) -> None:
@@ -98,23 +98,29 @@ def test_select_model_simple_query(selector: ModelSelector) -> None:
 
 
 def test_select_model_long_prompt(selector: ModelSelector) -> None:
-    """Should select large model for very long prompts."""
+    """Should select medium model for very long prompts."""
     # Create a prompt with more than 200 words
     long_prompt = " ".join(["word"] * 250)
     result = selector.select_model(long_prompt)
-    assert result == "mistral-large-latest"
+    assert result == "mistral-medium-latest"
 
 
 def test_select_model_multiple_questions(selector: ModelSelector) -> None:
-    """Should select large model for prompts with multiple questions."""
+    """Should select medium model for prompts with multiple questions."""
     prompt = "What is AI? How does it work? Why is it important? When was it invented?"
     result = selector.select_model(prompt)
-    assert result == "mistral-large-latest"
+    assert result == "mistral-medium-latest"
 
 
 def test_select_model_with_long_context(selector: ModelSelector) -> None:
-    """Should select large model when context is very long."""
+    """Should select medium model when context is moderately long."""
     result = selector.select_model("Simple question", conversation_length=25000)
+    assert result == "mistral-medium-latest"
+
+
+def test_select_model_with_very_large_context(selector: ModelSelector) -> None:
+    """Should select large model only when context exceeds 100k tokens."""
+    result = selector.select_model("Simple question", conversation_length=105000)
     assert result == "mistral-large-latest"
 
 
