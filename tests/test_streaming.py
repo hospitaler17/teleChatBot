@@ -99,14 +99,14 @@ async def test_generate_stream_basic(mock_mistral: MagicMock, settings: AppSetti
     client = MistralClient(settings)
 
     accumulated = []
-    async for chunk_content, full_content, is_final in client.generate_stream("test"):
-        accumulated.append((chunk_content, full_content, is_final))
+    async for chunk_content, full_content, is_final, source_urls in client.generate_stream("test"):
+        accumulated.append((chunk_content, full_content, is_final, source_urls))
 
     # Verify we got the expected chunks
     assert len(accumulated) == 4  # 3 content chunks + 1 final
-    assert accumulated[0] == ("Hello", "Hello", False)
-    assert accumulated[1] == (" world", "Hello world", False)
-    assert accumulated[2] == ("!", "Hello world!", False)
+    assert accumulated[0] == ("Hello", "Hello", False, [])
+    assert accumulated[1] == (" world", "Hello world", False, [])
+    assert accumulated[2] == ("!", "Hello world!", False, [])
     assert accumulated[3][2] is True  # Final chunk
     assert accumulated[3][1] == "Hello world!"  # Full content
 
@@ -148,7 +148,7 @@ async def test_generate_stream_with_empty_chunks(
     client = MistralClient(settings)
 
     accumulated = []
-    async for chunk_content, full_content, is_final in client.generate_stream("test"):
+    async for chunk_content, full_content, is_final, source_urls in client.generate_stream("test"):
         if chunk_content or is_final:  # Only collect non-empty or final chunks
             accumulated.append((chunk_content, full_content, is_final))
 
@@ -173,7 +173,7 @@ async def test_message_handler_uses_streaming_config() -> None:
 
     mistral_streaming = MagicMock()
     async def mock_stream(prompt, user_id=None):
-        yield ("Test", "Test", True)
+        yield ("Test", "Test", True, [])
     mistral_streaming.generate_stream = mock_stream
     mistral_streaming._memory = MagicMock()
     mistral_streaming._memory.add_message = MagicMock()
@@ -298,8 +298,8 @@ async def test_streaming_sends_status_message() -> None:
     mistral = MagicMock()
 
     async def mock_stream(prompt, user_id=None):
-        yield ("Hello", "Hello", False)
-        yield ("", "Hello", True)
+        yield ("Hello", "Hello", False, [])
+        yield ("", "Hello", True, [])
 
     mistral.generate_stream = mock_stream
     mistral._memory = MagicMock()
@@ -339,8 +339,8 @@ async def test_streaming_sends_search_status_for_web_search() -> None:
     mistral = MagicMock()
 
     async def mock_stream(prompt, user_id=None):
-        yield ("Result", "Result", False)
-        yield ("", "Result", True)
+        yield ("Result", "Result", False, [])
+        yield ("", "Result", True, [])
 
     mistral.generate_stream = mock_stream
     mistral._memory = MagicMock()
@@ -362,3 +362,85 @@ async def test_streaming_sends_search_status_for_web_search() -> None:
     # Verify that reply_text was called first with the search status message
     first_call_args = message.reply_text.call_args_list[0]
     assert first_call_args[0][0] == settings.status_messages.searching
+
+
+# ---------------------------------------------------------------------------
+# Source URL formatting tests
+# ---------------------------------------------------------------------------
+
+
+def test_format_source_urls_with_urls() -> None:
+    """_format_source_urls should produce a formatted block with source links."""
+    from src.bot.handlers.message_handler import _format_source_urls
+
+    result = _format_source_urls(["https://a.com", "https://b.com"])
+    assert "Источники" in result
+    assert "https://a.com" in result
+    assert "https://b.com" in result
+
+
+def test_format_source_urls_single_url() -> None:
+    """_format_source_urls should work with a single URL."""
+    from src.bot.handlers.message_handler import _format_source_urls
+
+    result = _format_source_urls(["https://only.com"])
+    assert "https://only.com" in result
+    assert "Источники" in result
+
+
+def test_format_source_urls_empty() -> None:
+    """_format_source_urls should return empty string for no URLs."""
+    from src.bot.handlers.message_handler import _format_source_urls
+
+    assert _format_source_urls([]) == ""
+
+
+def test_format_source_urls_deduplicates() -> None:
+    """_format_source_urls should remove duplicate URLs."""
+    from src.bot.handlers.message_handler import _format_source_urls
+
+    result = _format_source_urls(["https://a.com", "https://a.com", "https://b.com"])
+    assert result.count("https://a.com") == 1
+    assert "https://b.com" in result
+
+
+@pytest.mark.asyncio
+async def test_streaming_appends_source_urls() -> None:
+    """Streaming handler should append source URLs to the final message."""
+    from src.bot.filters.access_filter import AccessFilter
+
+    settings = AppSettings(
+        mistral_api_key="test-key",
+        telegram_bot_token="test-token",
+    )
+    settings.bot.enable_streaming = True
+    settings.access.allowed_user_ids = [1]
+
+    mistral = MagicMock()
+
+    async def mock_stream(prompt, user_id=None, image_urls=None):
+        yield ("Answer", "Answer", False, [])
+        yield ("", "Answer", True, ["https://src1.com", "https://src2.com"])
+
+    mistral.generate_stream = mock_stream
+    mistral._memory = MagicMock()
+    mistral._memory.add_message = MagicMock()
+    mistral._web_search = MagicMock()
+    mistral._should_use_web_search = MagicMock(return_value=True)
+
+    af = AccessFilter(settings)
+    handler = MessageHandler(settings, mistral, af)
+
+    message = MagicMock()
+    sent_status = AsyncMock()
+    sent_status.edit_text = AsyncMock()
+    message.reply_text = AsyncMock(return_value=sent_status)
+
+    await handler._handle_streaming_response(message, "новости сегодня", 1, "[You]: новости")
+
+    # Check that the final edit contains the source URLs
+    last_edit_call = sent_status.edit_text.call_args_list[-1]
+    final_text = last_edit_call[0][0]
+    assert "https://src1.com" in final_text
+    assert "https://src2.com" in final_text
+    assert "Источники" in final_text

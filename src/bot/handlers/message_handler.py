@@ -25,6 +25,27 @@ MSG_ERROR = "⚠️ Произошла ошибка при обращении к
 MSG_STREAMING_INDICATOR = "⏳ Генерация..."
 MSG_MULTI_PART_PREFIX = "часть"  # Used as: "(часть 2/3)"
 
+# Label for the sources block appended to search responses
+MSG_SOURCES_HEADER = "Источники"
+
+
+def _format_source_urls(urls: list[str]) -> str:
+    """Format source URLs as a block to append to the response.
+
+    Args:
+        urls: List of source URLs from web search.
+
+    Returns:
+        Formatted sources block, or empty string when there are no URLs.
+    """
+    if not urls:
+        return ""
+    unique_urls = list(dict.fromkeys(urls))  # deduplicate, preserve order
+    lines = [f"🔗 *{MSG_SOURCES_HEADER}:*"]
+    for url in unique_urls:
+        lines.append(f"• {url}")
+    return "\n\n" + "\n".join(lines)
+
 
 def _detect_image_mime(data: bytearray | bytes) -> str:
     """Return MIME type based on image magic bytes, defaulting to image/jpeg."""
@@ -327,6 +348,9 @@ class MessageHandler:
                     prompt, user_id=context_id, image_urls=image_urls
                 )
                 response_text = response.content
+                source_urls_block = _format_source_urls(response.source_urls)
+                if source_urls_block:
+                    response_text += source_urls_block
 
                 # Store both user message and bot response in history
                 if context_id is not None:
@@ -387,10 +411,15 @@ class MessageHandler:
         sent_message = await _safe_send_message(message, status_text, parse_mode=None)
 
         try:
-            async for chunk_content, full_content, is_final in self._mistral.generate_stream(
-                prompt, user_id=context_id, image_urls=image_urls
+            source_urls: list[str] = []
+            async for chunk_content, full_content, is_final, chunk_urls in (
+                self._mistral.generate_stream(
+                    prompt, user_id=context_id, image_urls=image_urls
+                )
             ):
                 accumulated_content = full_content
+                if is_final and chunk_urls:
+                    source_urls = chunk_urls
                 current_time = time.time()
 
                 # Only update if we've accumulated enough content and enough time has passed
@@ -435,6 +464,11 @@ class MessageHandler:
 
             # After streaming completes, handle final message
             if accumulated_content:
+                # Append source URLs block if web search was used
+                source_urls_block = _format_source_urls(source_urls)
+                if source_urls_block:
+                    accumulated_content += source_urls_block
+
                 # Calculate chunks with proper accounting for multi-part prefix
                 max_len = self._settings.bot.max_message_length
                 # Reserve space for multi-part prefix: "(часть X/YY)\n\n" ≈ 20 chars
