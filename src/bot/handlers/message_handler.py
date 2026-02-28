@@ -295,6 +295,19 @@ class MessageHandler:
                 )
             else:
                 # Use non-streaming (original behavior)
+                # Send initial status message
+                status_messages = self._settings.status_messages
+                if (
+                    self._mistral._web_search
+                    and self._mistral._should_use_web_search(prompt)
+                ):
+                    status_text = status_messages.searching
+                else:
+                    status_text = status_messages.thinking
+                status_msg = await _safe_send_message(
+                    message, status_text, parse_mode=None
+                )
+
                 response = await self._mistral.generate(prompt, user_id=context_id)
                 response_text = response.content
 
@@ -309,9 +322,18 @@ class MessageHandler:
 
                 # Send response (split by max length)
                 max_len = self._settings.bot.max_message_length
-                for chunk in _split_text(response_text, max_len):
+                chunks = _split_text(response_text, max_len)
+                for i, chunk in enumerate(chunks):
                     normalized = _normalize_markdown_for_telegram(chunk)
-                    await message.reply_text(normalized, parse_mode="Markdown")
+                    if i == 0 and status_msg:
+                        # Edit the status message with the first chunk
+                        success = await _safe_edit_message(
+                            status_msg, normalized, parse_mode="Markdown"
+                        )
+                        if not success:
+                            await message.reply_text(normalized, parse_mode="Markdown")
+                    else:
+                        await message.reply_text(normalized, parse_mode="Markdown")
 
         except Exception:
             logger.exception("Failed to generate response")
@@ -332,6 +354,19 @@ class MessageHandler:
         update_interval = self._settings.bot.streaming_update_interval
         threshold = self._settings.bot.streaming_threshold
         streaming_successful = False
+
+        # Determine the initial status message
+        status_messages = self._settings.status_messages
+        if (
+            self._mistral._web_search
+            and self._mistral._should_use_web_search(prompt)
+        ):
+            status_text = status_messages.searching
+        else:
+            status_text = status_messages.thinking
+
+        # Send the initial status message
+        sent_message = await _safe_send_message(message, status_text, parse_mode=None)
 
         try:
             async for chunk_content, full_content, is_final in self._mistral.generate_stream(

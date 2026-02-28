@@ -88,3 +88,10 @@ reactions:
     angry: "😠"
     excited: "🎉"
     thoughtful: "💭"
+
+# Status messages displayed during bot processing (customizable)
+status_messages:
+  # Shown while the bot is generating a response
+  thinking: "💭 Думаю..."
+  # Shown while the bot is performing a web search
+  searching: "🔎 Выполняю поиск..."

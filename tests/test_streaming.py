@@ -281,3 +281,84 @@ def test_truncate_safely_with_backticks() -> None:
     result = _truncate_safely(text, max_len, indicator)
     # Should close the backtick
     assert result.count('`') % 2 == 0
+
+
+@pytest.mark.asyncio
+async def test_streaming_sends_status_message() -> None:
+    """Test that streaming handler sends an initial status message."""
+    from src.bot.filters.access_filter import AccessFilter
+
+    settings = AppSettings(
+        mistral_api_key="test-key",
+        telegram_bot_token="test-token",
+    )
+    settings.bot.enable_streaming = True
+    settings.access.allowed_user_ids = [1]
+
+    mistral = MagicMock()
+
+    async def mock_stream(prompt, user_id=None):
+        yield ("Hello", "Hello", False)
+        yield ("", "Hello", True)
+
+    mistral.generate_stream = mock_stream
+    mistral._memory = MagicMock()
+    mistral._memory.add_message = MagicMock()
+    mistral._web_search = None
+    mistral._should_use_web_search = MagicMock(return_value=False)
+
+    af = AccessFilter(settings)
+    handler = MessageHandler(settings, mistral, af)
+
+    # Create mock message
+    message = MagicMock()
+    sent_status = AsyncMock()
+    sent_status.edit_text = AsyncMock()
+    message.reply_text = AsyncMock(return_value=sent_status)
+
+    await handler._handle_streaming_response(message, "test", 1, "[You]: test")
+
+    # Verify that reply_text was called first with the status message
+    first_call_args = message.reply_text.call_args_list[0]
+    assert first_call_args[0][0] == settings.status_messages.thinking
+    assert first_call_args[1].get("parse_mode") is None
+
+
+@pytest.mark.asyncio
+async def test_streaming_sends_search_status_for_web_search() -> None:
+    """Test that streaming shows search status when web search is triggered."""
+    from src.bot.filters.access_filter import AccessFilter
+
+    settings = AppSettings(
+        mistral_api_key="test-key",
+        telegram_bot_token="test-token",
+    )
+    settings.bot.enable_streaming = True
+    settings.access.allowed_user_ids = [1]
+
+    mistral = MagicMock()
+
+    async def mock_stream(prompt, user_id=None):
+        yield ("Result", "Result", False)
+        yield ("", "Result", True)
+
+    mistral.generate_stream = mock_stream
+    mistral._memory = MagicMock()
+    mistral._memory.add_message = MagicMock()
+    # Simulate web search being active
+    mistral._web_search = MagicMock()
+    mistral._should_use_web_search = MagicMock(return_value=True)
+
+    af = AccessFilter(settings)
+    handler = MessageHandler(settings, mistral, af)
+
+    message = MagicMock()
+    sent_status = AsyncMock()
+    sent_status.edit_text = AsyncMock()
+    message.reply_text = AsyncMock(return_value=sent_status)
+
+    await handler._handle_streaming_response(message, "новости сегодня", 1, "[You]: новости")
+
+    # Verify that reply_text was called first with the search status message
+    first_call_args = message.reply_text.call_args_list[0]
+    assert first_call_args[0][0] == settings.status_messages.searching

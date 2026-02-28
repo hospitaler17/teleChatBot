@@ -158,6 +158,18 @@ class AccessSettings(BaseModel):
     reasoning_mode_enabled: bool = True  # Runtime toggle for chain-of-thought reasoning
 
 
+class StatusMessages(BaseModel):
+    """Configurable status messages displayed during bot processing.
+
+    Attributes:
+        thinking: Status shown while the bot is generating a response.
+        searching: Status shown while the bot is performing a web search.
+    """
+
+    thinking: str = "💭 Думаю..."
+    searching: str = "🔎 Выполняю поиск..."
+
+
 class ReactionSettings(BaseModel):
     """Settings for automatic message reactions.
 
@@ -213,6 +225,7 @@ class AppSettings(BaseSettings):
     admin: AdminSettings = Field(default_factory=AdminSettings)
     access: AccessSettings = Field(default_factory=AccessSettings)
     reactions: ReactionSettings = Field(default_factory=ReactionSettings)
+    status_messages: StatusMessages = Field(default_factory=StatusMessages)
 
     @classmethod
     def load(cls, config_dir: Path | None = None) -> Self:
@@ -336,6 +349,7 @@ class AppSettings(BaseSettings):
             admin=AdminSettings(**yaml_data.get("admin", {})),
             access=AccessSettings(**access_data),
             reactions=ReactionSettings(**yaml_data.get("reactions", {})),
+            status_messages=StatusMessages(**yaml_data.get("status_messages", {})),
         )
 
     def save_access(self, config_dir: Path | None = None) -> None:

@@ -80,6 +80,19 @@ reactions:
     thoughtful: "💭"
 ```
 
+### `status_messages` section
+
+```yaml
+status_messages:
+  thinking: "💭 Думаю..."               # Shown while generating a response
+  searching: "🔎 Выполняю поиск..."      # Shown while performing web search
+```
+
+Status messages are displayed to the user during processing:
+- **Telegram**: an initial message is sent with the status text, then edited with
+  the actual response as streaming progresses.
+- **CLI**: the status is printed as a separate line before the response output.
+
 ---
 
 ## `config/allowed_users.yaml`
