@@ -131,6 +131,14 @@ AVAILABLE_MODELS = {
         supports_vision=False,
         complexity_score=2,
     ),
+    "mistral-medium-latest": ModelCharacteristics(
+        name="mistral-medium-latest",
+        max_context_length=128000,
+        speed_tier=2,
+        supports_code=True,
+        supports_vision=False,
+        complexity_score=2,
+    ),
     "pixtral-12b-latest": ModelCharacteristics(
         name="pixtral-12b-latest",
         max_context_length=128000,
@@ -193,14 +201,22 @@ class ModelSelector:
             logger.info("Selected codestral-latest due to code-related content")
             return "codestral-latest"
 
+        if total_context > 100000:
+            logger.info(
+                "Selected mistral-large-latest due to very large context "
+                "(context=%d)",
+                int(total_context),
+            )
+            return "mistral-large-latest"
+
         if is_complex or total_context > 20000:
             logger.info(
-                "Selected mistral-large-latest due to complexity or long context "
+                "Selected mistral-medium-latest due to complexity or long context "
                 "(complex=%s, context=%d)",
                 is_complex,
                 int(total_context),
             )
-            return "mistral-large-latest"
+            return "mistral-medium-latest"
 
         # Default to configured model for simple queries
         logger.info("Selected %s for simple query", self._default_model)

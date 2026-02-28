@@ -393,7 +393,7 @@ async def test_generate_code_request(mock_mistral: MagicMock, settings: AppSetti
 @patch("src.api.mistral_client.Mistral")
 @pytest.mark.asyncio
 async def test_generate_complex_request(mock_mistral: MagicMock, settings: AppSettings) -> None:
-    """generate() should select large model for complex reasoning queries."""
+    """generate() should select medium model for complex reasoning queries."""
     mock_client = MagicMock()
     mock_response = MagicMock()
     mock_message = MagicMock()
@@ -413,10 +413,10 @@ async def test_generate_complex_request(mock_mistral: MagicMock, settings: AppSe
     assert isinstance(result, GenerateResponse)
     assert result.content == "Detailed analysis..."
 
-    # Verify that large model was selected
+    # Verify that medium model was selected
     mock_client.chat.complete_async.assert_called_once()
     _, kwargs = mock_client.chat.complete_async.call_args
-    assert kwargs["model"] == "mistral-large-latest"
+    assert kwargs["model"] == "mistral-medium-latest"
 
 
 @patch("src.api.mistral_client.Mistral")
