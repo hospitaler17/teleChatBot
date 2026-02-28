@@ -20,6 +20,9 @@ DEFAULT_SEARXNG_INSTANCES = [
     "https://search.sapti.me",
     "https://searxng.ch",
     "https://search.bus-hit.me",
+    "https://searx.envs.net",
+    "https://searx.neocat.cc",
+    "https://searx.space",
 ]
 
 # Realistic browser User-Agent to reduce blocks from public instances.
@@ -56,6 +59,7 @@ class SearchProvider(Enum):
 
     GOOGLE = "google"
     SEARXNG = "searxng"
+    PERPLEXITY = "perplexity"
     DUCKDUCKGO = "duckduckgo"
 
 
@@ -94,7 +98,9 @@ class WebSearchClient:
         self.providers: list[SearchProvider] = []
         if google_api_key and google_search_engine_id:
             self.providers.append(SearchProvider.GOOGLE)
-        self.providers.extend([SearchProvider.SEARXNG, SearchProvider.DUCKDUCKGO])
+        self.providers.extend(
+            [SearchProvider.SEARXNG, SearchProvider.PERPLEXITY, SearchProvider.DUCKDUCKGO]
+        )
 
         logger.info(f"Web search initialized with providers: {[p.value for p in self.providers]}")
 
@@ -117,6 +123,8 @@ class WebSearchClient:
                     results = await self._search_google(query, count)
                 elif provider == SearchProvider.SEARXNG:
                     results = await self._search_searxng(query, count)
+                elif provider == SearchProvider.PERPLEXITY:
+                    results = await self._search_perplexity(query, count)
                 else:  # DUCKDUCKGO
                     results = await self._search_duckduckgo(query, count)
 
@@ -307,7 +315,45 @@ class WebSearchClient:
                 return SearchResult(text="\n\n".join(results), urls=urls)
             return SearchResult(text="", urls=[])
 
-    async def _search_duckduckgo(self, query: str, count: int) -> SearchResult:
+    async def _search_perplexity(self, query: str, count: int) -> str:
+        """Search using the Perplexity public search API."""
+        try:
+            async with httpx.AsyncClient() as client:
+                url = "https://api.perplexity.ai/search"
+                params = {"q": query}
+                headers = {"User-Agent": DEFAULT_USER_AGENT}
+
+                response = await self._retry_with_backoff(
+                    lambda: client.get(url, params=params, timeout=15.0, headers=headers),
+                    provider_name="Perplexity",
+                )
+                data = response.json()
+
+                results_data = data.get("results", [])
+                if not results_data:
+                    return ""
+
+                results = []
+                for idx, item in enumerate(results_data[:count], 1):
+                    title = item.get("title", "")
+                    content = item.get("content", item.get("snippet", ""))
+                    url_link = item.get("url", "")
+                    results.append(f"{idx}. {title}\n{content}\nИсточник: {url_link}")
+
+                if results:
+                    logger.info(f"Perplexity returned {len(results)} results")
+                    return "\n\n".join(results)
+                return ""
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                logger.warning("Perplexity API rate limit reached")
+            raise
+        except Exception as e:
+            logger.error(f"Perplexity search error: {e}")
+            raise
+
+    async def _search_duckduckgo(self, query: str, count: int) -> str:
         """Search using DuckDuckGo with retry on ratelimit errors."""
         last_error: Exception | None = None
 
