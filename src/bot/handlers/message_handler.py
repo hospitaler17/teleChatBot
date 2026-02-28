@@ -26,6 +26,17 @@ MSG_STREAMING_INDICATOR = "⏳ Генерация..."
 MSG_MULTI_PART_PREFIX = "часть"  # Used as: "(часть 2/3)"
 
 
+def _detect_image_mime(data: bytearray | bytes) -> str:
+    """Return MIME type based on image magic bytes, defaulting to image/jpeg."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:3] == b"GIF":
+        return "image/gif"
+    return "image/jpeg"
+
+
 def _truncate_safely(text: str, max_len: int, indicator: str) -> str:
     """Truncate text safely without breaking markdown formatting.
 
@@ -536,9 +547,11 @@ class MessageHandler:
             photo = message.photo[-1]
             file = await context.bot.get_file(photo.file_id)
             image_bytes = await file.download_as_bytearray()
+            mime = _detect_image_mime(image_bytes)
             b64 = base64.b64encode(image_bytes).decode("utf-8")
-            data_url = f"data:image/jpeg;base64,{b64}"
-            logger.info("Downloaded photo (%d bytes) for vision processing", len(image_bytes))
+            data_url = f"data:{mime};base64,{b64}"
+            logger.info("Downloaded photo (%d bytes, %s) for vision processing",
+                        len(image_bytes), mime)
             return [data_url]
         except Exception:
             logger.exception("Failed to download photo from Telegram")

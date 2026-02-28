@@ -78,6 +78,18 @@ class MistralClient:
             settings.mistral.conversation_history_size,
         )
 
+    @staticmethod
+    def _build_user_message(
+        prompt: str, image_urls: Optional[list[str]] = None
+    ) -> UserMessage:
+        """Build a UserMessage, using multimodal content when images are present."""
+        if image_urls:
+            content_chunks: list[TextChunk | ImageURLChunk] = [TextChunk(text=prompt)]
+            for url in image_urls:
+                content_chunks.append(ImageURLChunk(image_url=url))
+            return UserMessage(content=content_chunks)
+        return UserMessage(role="user", content=prompt)
+
     async def generate(
         self,
         prompt: str,
@@ -182,13 +194,7 @@ class MistralClient:
             # Add current user message
             has_images = bool(image_urls)
             logger.debug(f"Adding current user message to API: {prompt[:200]}...")
-            if has_images:
-                content_chunks: list[TextChunk | ImageURLChunk] = [TextChunk(text=prompt)]
-                for url in image_urls:
-                    content_chunks.append(ImageURLChunk(image_url=url))
-                messages.append(UserMessage(content=content_chunks))
-            else:
-                messages.append(UserMessage(role="user", content=prompt))
+            messages.append(self._build_user_message(prompt, image_urls))
 
             # Select appropriate model based on request characteristics
             selected_model = self._model_selector.select_model(
@@ -349,13 +355,7 @@ class MistralClient:
                     )
 
             has_images = bool(image_urls)
-            if has_images:
-                content_chunks: list[TextChunk | ImageURLChunk] = [TextChunk(text=prompt)]
-                for url in image_urls:
-                    content_chunks.append(ImageURLChunk(image_url=url))
-                messages.append(UserMessage(content=content_chunks))
-            else:
-                messages.append(UserMessage(role="user", content=prompt))
+            messages.append(self._build_user_message(prompt, image_urls))
 
             # Select appropriate model
             selected_model = self._model_selector.select_model(
