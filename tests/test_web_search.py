@@ -256,9 +256,9 @@ async def test_search_perplexity_returns_results() -> None:
     ):
         result = await client._search_perplexity("test query", 3)
 
-    assert "Perplexity Title" in result
-    assert "Some content" in result
-    assert "https://perplexity.example.com" in result
+    assert "Perplexity Title" in result.text
+    assert "Some content" in result.text
+    assert "https://perplexity.example.com" in result.urls
 
 
 @pytest.mark.asyncio
@@ -278,12 +278,12 @@ async def test_search_perplexity_uses_snippet_fallback() -> None:
     ):
         result = await client._search_perplexity("test query", 3)
 
-    assert "Snippet text" in result
+    assert "Snippet text" in result.text
 
 
 @pytest.mark.asyncio
 async def test_search_perplexity_empty_results() -> None:
-    """_search_perplexity should return empty string when no results."""
+    """_search_perplexity should return empty SearchResult when no results."""
     client = WebSearchClient()
 
     mock_response = MagicMock()
@@ -294,7 +294,7 @@ async def test_search_perplexity_empty_results() -> None:
     ):
         result = await client._search_perplexity("test query", 3)
 
-    assert result == ""
+    assert not result
 
 
 @pytest.mark.asyncio

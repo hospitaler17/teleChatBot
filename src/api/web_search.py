@@ -315,7 +315,7 @@ class WebSearchClient:
                 return SearchResult(text="\n\n".join(results), urls=urls)
             return SearchResult(text="", urls=[])
 
-    async def _search_perplexity(self, query: str, count: int) -> str:
+    async def _search_perplexity(self, query: str, count: int) -> SearchResult:
         """Search using the Perplexity public search API."""
         try:
             async with httpx.AsyncClient() as client:
@@ -331,19 +331,22 @@ class WebSearchClient:
 
                 results_data = data.get("results", [])
                 if not results_data:
-                    return ""
+                    return SearchResult(text="", urls=[])
 
                 results = []
+                urls = []
                 for idx, item in enumerate(results_data[:count], 1):
                     title = item.get("title", "")
                     content = item.get("content", item.get("snippet", ""))
                     url_link = item.get("url", "")
                     results.append(f"{idx}. {title}\n{content}\nИсточник: {url_link}")
+                    if url_link:
+                        urls.append(url_link)
 
                 if results:
                     logger.info(f"Perplexity returned {len(results)} results")
-                    return "\n\n".join(results)
-                return ""
+                    return SearchResult(text="\n\n".join(results), urls=urls)
+                return SearchResult(text="", urls=[])
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 429:
@@ -353,7 +356,7 @@ class WebSearchClient:
             logger.error(f"Perplexity search error: {e}")
             raise
 
-    async def _search_duckduckgo(self, query: str, count: int) -> str:
+    async def _search_duckduckgo(self, query: str, count: int) -> SearchResult:
         """Search using DuckDuckGo with retry on ratelimit errors."""
         last_error: Exception | None = None
 
