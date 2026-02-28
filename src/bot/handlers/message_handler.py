@@ -367,8 +367,6 @@ class MessageHandler:
 
         # Send the initial status message
         sent_message = await _safe_send_message(message, status_text, parse_mode=None)
-        if sent_message:
-            last_update_time = time.time()
 
         try:
             async for chunk_content, full_content, is_final in self._mistral.generate_stream(
