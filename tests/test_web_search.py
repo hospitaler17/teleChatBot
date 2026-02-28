@@ -14,6 +14,7 @@ from src.api.web_search import (
     DEFAULT_SEARXNG_INSTANCES,
     DEFAULT_USER_AGENT,
     SearchProvider,
+    SearchResult,
     WebSearchClient,
 )
 
@@ -142,16 +143,19 @@ async def test_searxng_falls_back_on_403() -> None:
         searxng_instances=["https://blocked.example.com", "https://ok.example.com"],
     )
 
-    async def mock_instance(instance_url: str, query: str, count: int) -> str:
+    async def mock_instance(instance_url: str, query: str, count: int) -> SearchResult:
         if instance_url == "https://blocked.example.com":
             resp = httpx.Response(403, request=httpx.Request("GET", instance_url))
             raise httpx.HTTPStatusError("Forbidden", request=resp.request, response=resp)
-        return "1. Result\nContent\nИсточник: https://example.com"
+        return SearchResult(
+            text="1. Result\nContent\nИсточник: https://example.com",
+            urls=["https://example.com"],
+        )
 
     with patch.object(client, "_search_searxng_instance", side_effect=mock_instance):
         result = await client._search_searxng("test query", 3)
 
-    assert "Result" in result
+    assert "Result" in result.text
 
 
 @pytest.mark.asyncio
@@ -161,7 +165,7 @@ async def test_searxng_all_instances_fail() -> None:
         searxng_instances=["https://a.example.com", "https://b.example.com"],
     )
 
-    async def mock_instance(instance_url: str, query: str, count: int) -> str:
+    async def mock_instance(instance_url: str, query: str, count: int) -> SearchResult:
         resp = httpx.Response(403, request=httpx.Request("GET", instance_url))
         raise httpx.HTTPStatusError("Forbidden", request=resp.request, response=resp)
 
@@ -201,7 +205,7 @@ async def test_duckduckgo_retries_on_ratelimit() -> None:
     ):
         result = await client._search_duckduckgo("test", 3)
 
-    assert "T" in result
+    assert "T" in result.text
     assert call_count == 2
 
 
@@ -317,11 +321,14 @@ async def test_search_falls_back_to_duckduckgo() -> None:
     """search() should fall back to DuckDuckGo when SearXNG fails."""
     client = WebSearchClient()
 
-    async def fail_searxng(query: str, count: int) -> str:
+    async def fail_searxng(query: str, count: int) -> SearchResult:
         raise Exception("SearXNG down")
 
-    async def ok_ddg(query: str, count: int) -> str:
-        return "1. DDG Result\nContent\nИсточник: https://ddg.example.com"
+    async def ok_ddg(query: str, count: int) -> SearchResult:
+        return SearchResult(
+            text="1. DDG Result\nContent\nИсточник: https://ddg.example.com",
+            urls=["https://ddg.example.com"],
+        )
 
     with (
         patch.object(client, "_search_searxng", side_effect=fail_searxng),
@@ -329,7 +336,7 @@ async def test_search_falls_back_to_duckduckgo() -> None:
     ):
         result = await client.search("test query")
 
-    assert "DDG Result" in result
+    assert "DDG Result" in result.text
 
 
 @pytest.mark.asyncio
@@ -337,7 +344,7 @@ async def test_search_returns_empty_when_all_fail() -> None:
     """search() should return empty string when all providers fail."""
     client = WebSearchClient()
 
-    async def fail(query: str, count: int) -> str:
+    async def fail(query: str, count: int) -> SearchResult:
         raise Exception("Provider down")
 
     with (
@@ -347,7 +354,8 @@ async def test_search_returns_empty_when_all_fail() -> None:
     ):
         result = await client.search("test query")
 
-    assert result == ""
+    assert result.text == ""
+    assert result.urls == []
 
 
 # ---------------------------------------------------------------------------
@@ -378,3 +386,52 @@ def test_max_retries_is_positive() -> None:
 
 def test_backoff_base_is_positive() -> None:
     assert _BACKOFF_BASE > 0
+
+
+# ---------------------------------------------------------------------------
+# SearchResult tests
+# ---------------------------------------------------------------------------
+
+
+def test_search_result_truthy_when_text_present() -> None:
+    """SearchResult should be truthy when text is non-empty."""
+    result = SearchResult(text="some results", urls=["https://example.com"])
+    assert result
+
+
+def test_search_result_falsy_when_text_empty() -> None:
+    """SearchResult should be falsy when text is empty."""
+    result = SearchResult(text="", urls=[])
+    assert not result
+
+
+def test_search_result_urls_populated() -> None:
+    """SearchResult should carry source URLs from search results."""
+    result = SearchResult(
+        text="1. Title\nContent\nИсточник: https://a.com",
+        urls=["https://a.com", "https://b.com"],
+    )
+    assert result.urls == ["https://a.com", "https://b.com"]
+
+
+@pytest.mark.asyncio
+async def test_search_returns_urls_on_fallback() -> None:
+    """search() should carry URLs through provider fallback."""
+    client = WebSearchClient()
+
+    async def fail_searxng(query: str, count: int) -> SearchResult:
+        raise Exception("SearXNG down")
+
+    async def ok_ddg(query: str, count: int) -> SearchResult:
+        return SearchResult(
+            text="1. Result\nBody\nИсточник: https://ddg.example.com",
+            urls=["https://ddg.example.com"],
+        )
+
+    with (
+        patch.object(client, "_search_searxng", side_effect=fail_searxng),
+        patch.object(client, "_search_duckduckgo", side_effect=ok_ddg),
+    ):
+        result = await client.search("test query")
+
+    assert result.urls == ["https://ddg.example.com"]

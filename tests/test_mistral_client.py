@@ -728,3 +728,22 @@ async def test_generate_without_images_uses_text_content(
     # Last message should have plain string content
     user_msg = kwargs["messages"][-1]
     assert user_msg.content == "Hello"
+
+
+# ---------------------------------------------------------------------------
+# Source URL propagation tests
+# ---------------------------------------------------------------------------
+
+
+def test_generate_response_default_source_urls() -> None:
+    """GenerateResponse should default to empty source_urls list."""
+    resp = GenerateResponse(content="hi", model="m")
+    assert resp.source_urls == []
+
+
+def test_generate_response_with_source_urls() -> None:
+    """GenerateResponse should carry source_urls when provided."""
+    resp = GenerateResponse(
+        content="hi", model="m", source_urls=["https://a.com"]
+    )
+    assert resp.source_urls == ["https://a.com"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import typing
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
@@ -39,6 +40,18 @@ _MAX_RETRIES = 2
 
 # Base delay (seconds) for exponential backoff between retries.
 _BACKOFF_BASE = 1.0
+
+
+@dataclass
+class SearchResult:
+    """Structured web search result containing formatted text and source URLs."""
+
+    text: str
+    urls: list[str] = field(default_factory=list)
+
+    def __bool__(self) -> bool:
+        """Return True when search produced non-empty text."""
+        return bool(self.text)
 
 
 class SearchProvider(Enum):
@@ -89,7 +102,7 @@ class WebSearchClient:
 
         logger.info(f"Web search initialized with providers: {[p.value for p in self.providers]}")
 
-    async def search(self, query: str, count: int = 3) -> str:
+    async def search(self, query: str, count: int = 3) -> SearchResult:
         """
         Perform web search using available providers with fallback.
 
@@ -98,7 +111,7 @@ class WebSearchClient:
             count: Number of results to return (default: 3)
 
         Returns:
-            Formatted search results as string
+            SearchResult with formatted text and source URLs
         """
         errors: list[str] = []
 
@@ -127,7 +140,7 @@ class WebSearchClient:
             "All search providers failed. Errors: %s",
             "; ".join(errors) if errors else "no providers available",
         )
-        return ""
+        return SearchResult(text="", urls=[])
 
     @staticmethod
     async def _retry_with_backoff(
@@ -182,7 +195,7 @@ class WebSearchClient:
         # Should not be reached, but keeps mypy happy.
         raise last_exc  # type: ignore[misc]
 
-    async def _search_google(self, query: str, count: int) -> str:
+    async def _search_google(self, query: str, count: int) -> SearchResult:
         """Search using Google Custom Search API."""
         try:
             async with httpx.AsyncClient() as client:
@@ -202,19 +215,22 @@ class WebSearchClient:
 
                 items = data.get("items", [])
                 if not items:
-                    return ""
+                    return SearchResult(text="", urls=[])
 
                 results = []
+                urls = []
                 for idx, item in enumerate(items[:count], 1):
                     title = item.get("title", "")
                     snippet = item.get("snippet", "")
                     link = item.get("link", "")
                     results.append(f"{idx}. {title}\n{snippet}\nИсточник: {link}")
+                    if link:
+                        urls.append(link)
 
                 if results:
                     logger.info(f"Google returned {len(results)} results")
-                    return "\n\n".join(results)
-                return ""
+                    return SearchResult(text="\n\n".join(results), urls=urls)
+                return SearchResult(text="", urls=[])
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 429:
@@ -224,7 +240,7 @@ class WebSearchClient:
             logger.error(f"Google search error: {e}")
             raise
 
-    async def _search_searxng(self, query: str, count: int) -> str:
+    async def _search_searxng(self, query: str, count: int) -> SearchResult:
         """Search using SearXNG public instances with instance-level fallback."""
         last_error: Exception | None = None
 
@@ -259,11 +275,11 @@ class WebSearchClient:
 
         if last_error is not None:
             raise last_error
-        return ""
+        return SearchResult(text="", urls=[])
 
     async def _search_searxng_instance(
         self, instance_url: str, query: str, count: int
-    ) -> str:
+    ) -> SearchResult:
         """Search a single SearXNG instance (with retry for retryable codes)."""
         async with httpx.AsyncClient() as client:
             url = f"{instance_url}/search"
@@ -278,21 +294,24 @@ class WebSearchClient:
 
             results_data = data.get("results", [])
             if not results_data:
-                return ""
+                return SearchResult(text="", urls=[])
 
             results = []
+            urls = []
             for idx, item in enumerate(results_data[:count], 1):
                 title = item.get("title", "")
                 content = item.get("content", "")
                 url_link = item.get("url", "")
                 results.append(f"{idx}. {title}\n{content}\nИсточник: {url_link}")
+                if url_link:
+                    urls.append(url_link)
 
             if results:
                 logger.info(
                     f"SearXNG ({instance_url}) returned {len(results)} results"
                 )
-                return "\n\n".join(results)
-            return ""
+                return SearchResult(text="\n\n".join(results), urls=urls)
+            return SearchResult(text="", urls=[])
 
     async def _search_perplexity(self, query: str, count: int) -> str:
         """Search using the Perplexity public search API."""
@@ -342,16 +361,19 @@ class WebSearchClient:
                     results_list = list(ddgs.text(query, max_results=count))
 
                     results = []
+                    urls = []
                     for idx, result in enumerate(results_list[:count], 1):
                         title = result.get("title", "")
                         body = result.get("body", "")
                         url = result.get("href", "")
                         results.append(f"{idx}. {title}\n{body}\nИсточник: {url}")
+                        if url:
+                            urls.append(url)
 
                     if results:
                         logger.info(f"DuckDuckGo returned {len(results)} results")
-                        return "\n\n".join(results)
-                    return ""
+                        return SearchResult(text="\n\n".join(results), urls=urls)
+                    return SearchResult(text="", urls=[])
 
             except Exception as e:
                 last_error = e
@@ -378,4 +400,4 @@ class WebSearchClient:
 
         if last_error is not None:
             raise last_error
-        return ""
+        return SearchResult(text="", urls=[])
