@@ -98,7 +98,9 @@ class WebSearchClient:
         self.providers: list[SearchProvider] = []
         if google_api_key and google_search_engine_id:
             self.providers.append(SearchProvider.GOOGLE)
-        self.providers.extend([SearchProvider.SEARXNG, SearchProvider.PERPLEXITY, SearchProvider.DUCKDUCKGO])
+        self.providers.extend(
+            [SearchProvider.SEARXNG, SearchProvider.PERPLEXITY, SearchProvider.DUCKDUCKGO]
+        )
 
         logger.info(f"Web search initialized with providers: {[p.value for p in self.providers]}")
 

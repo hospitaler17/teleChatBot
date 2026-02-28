@@ -26,7 +26,11 @@ from src.api.web_search import (
 def test_default_providers_without_google() -> None:
     """Client without Google keys should have SearXNG + Perplexity + DuckDuckGo providers."""
     client = WebSearchClient()
-    assert client.providers == [SearchProvider.SEARXNG, SearchProvider.PERPLEXITY, SearchProvider.DUCKDUCKGO]
+    assert client.providers == [
+        SearchProvider.SEARXNG,
+        SearchProvider.PERPLEXITY,
+        SearchProvider.DUCKDUCKGO,
+    ]
 
 
 def test_default_providers_with_google() -> None:
@@ -247,7 +251,9 @@ async def test_search_perplexity_returns_results() -> None:
         ]
     }
 
-    with patch.object(client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response):
+    with patch.object(
+        client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response
+    ):
         result = await client._search_perplexity("test query", 3)
 
     assert "Perplexity Title" in result
@@ -267,7 +273,9 @@ async def test_search_perplexity_uses_snippet_fallback() -> None:
         ]
     }
 
-    with patch.object(client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response):
+    with patch.object(
+        client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response
+    ):
         result = await client._search_perplexity("test query", 3)
 
     assert "Snippet text" in result
@@ -281,7 +289,9 @@ async def test_search_perplexity_empty_results() -> None:
     mock_response = MagicMock()
     mock_response.json.return_value = {"results": []}
 
-    with patch.object(client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response):
+    with patch.object(
+        client, "_retry_with_backoff", new_callable=AsyncMock, return_value=mock_response
+    ):
         result = await client._search_perplexity("test query", 3)
 
     assert result == ""
