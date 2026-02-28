@@ -37,6 +37,22 @@ mistral:
   # Useful for educational purposes, analysis, and complex problem-solving.
   reasoning_mode: false
 
+# Groq API settings (optional, for load balancing with Mistral)
+# When enabled, requests alternate between Mistral and Groq (round-robin).
+# If one provider fails, the other is used as a fallback automatically.
+# Requires GROQ_API_KEY in .env
+groq:
+  # Enable Groq provider for cross-mode load balancing
+  enabled: false
+  # Default model for simple queries
+  model: "llama-3.3-70b-versatile"
+  max_tokens: 1024
+  temperature: 0.7
+  # Model used for code-related queries
+  code_model: "llama-3.3-70b-versatile"
+  # Model used for complex reasoning / long context
+  large_model: "llama-3.3-70b-versatile"
+
 # Bot behavior
 bot:
   # Bot username (without @), used for mention detection in groups

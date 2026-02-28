@@ -11,7 +11,7 @@ import sys
 from typing import Optional
 
 from src.api.admin_commands import AdminCommandService
-from src.api.mistral_client import MistralClient
+from src.api.provider_router import ProviderRouter
 from src.bot.filters.access_filter import AccessFilter
 from src.config.settings import AppSettings
 
@@ -28,7 +28,8 @@ class CLIChat:
             settings: Application settings
         """
         self.settings = settings
-        self.client = MistralClient(settings)
+        self._router = ProviderRouter(settings)
+        self.client = self._router.mistral
         # Fixed user ID for CLI sessions (reserved for local testing)
         self.user_id = 1
         # Ensure the CLI user is present in the admin list so admin commands work in CLI mode
@@ -207,7 +208,7 @@ class CLIChat:
                 accumulated_content = ""
 
                 async for chunk_content, full_content, is_final, _urls in (
-                    self.client.generate_stream(
+                    self._router.generate_stream(
                         user_input, user_id=self.user_id
                     )
                 ):
@@ -226,7 +227,7 @@ class CLIChat:
                 return accumulated_content, None
             else:
                 # Use non-streaming mode (original behavior)
-                response = await self.client.generate(user_input, user_id=self.user_id)
+                response = await self._router.generate(user_input, user_id=self.user_id)
 
                 # Extract content and metadata
                 response_text = response.content
