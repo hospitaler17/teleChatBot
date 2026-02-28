@@ -147,6 +147,7 @@ class TestAdminCommandService:
     def test_reasoning_on_as_admin(self, tmp_path: Path) -> None:
         """reasoning_on should enable reasoning mode when caller is admin."""
         s = _settings(admin_ids=[1])
+        s.mistral.reasoning_mode = False
         s.access.reasoning_mode_enabled = False
         af = AccessFilter(s)
         service = AdminCommandService(s, af)
@@ -158,6 +159,7 @@ class TestAdminCommandService:
         assert success is True
         assert "включён" in message
         assert s.access.reasoning_mode_enabled is True
+        assert s.mistral.reasoning_mode is True
 
     def test_reasoning_off_as_admin(self, tmp_path: Path) -> None:
         """reasoning_off should disable reasoning mode when caller is admin."""
@@ -197,6 +199,102 @@ class TestAdminCommandService:
 
         assert success is True
         assert "включён" in message
+
+    def test_date_on_then_status_shows_enabled(self, tmp_path: Path) -> None:
+        """date_status should show enabled after date_on is called."""
+        s = _settings(admin_ids=[1])
+        s.mistral.always_append_date = False
+        s.access.always_append_date_enabled = False
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            service.date_on(admin_id=1)
+
+        success, message = service.date_status(admin_id=1)
+        assert success is True
+        assert "включено ✅" in message
+
+    def test_date_off_then_status_shows_disabled(self, tmp_path: Path) -> None:
+        """date_status should show disabled after date_off is called."""
+        s = _settings(admin_ids=[1])
+        s.mistral.always_append_date = True
+        s.access.always_append_date_enabled = True
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            service.date_off(admin_id=1)
+
+        success, message = service.date_status(admin_id=1)
+        assert success is True
+        assert "выключено ❌" in message
+
+    def test_reactions_on_then_status_shows_enabled(self, tmp_path: Path) -> None:
+        """reactions_status should show enabled after reactions_on is called."""
+        s = _settings(admin_ids=[1])
+        s.reactions.enabled = False
+        s.access.reactions_enabled = False
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            service.reactions_on(admin_id=1)
+
+        success, message = service.reactions_status(admin_id=1)
+        assert success is True
+        assert "включены ✅" in message
+
+    def test_reactions_off_then_status_shows_disabled(self, tmp_path: Path) -> None:
+        """reactions_status should show disabled after reactions_off is called."""
+        s = _settings(admin_ids=[1])
+        s.reactions.enabled = True
+        s.access.reactions_enabled = True
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            service.reactions_off(admin_id=1)
+
+        success, message = service.reactions_status(admin_id=1)
+        assert success is True
+        assert "выключены ❌" in message
+
+    def test_reasoning_on_then_status_shows_enabled(self, tmp_path: Path) -> None:
+        """reasoning_status should show enabled after reasoning_on is called."""
+        s = _settings(admin_ids=[1])
+        s.mistral.reasoning_mode = False
+        s.access.reasoning_mode_enabled = False
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            service.reasoning_on(admin_id=1)
+
+        success, message = service.reasoning_status(admin_id=1)
+        assert success is True
+        assert "включён ✅" in message
+
+    def test_reasoning_off_then_status_shows_disabled(self, tmp_path: Path) -> None:
+        """reasoning_status should show disabled after reasoning_off is called."""
+        s = _settings(admin_ids=[1])
+        s.mistral.reasoning_mode = True
+        s.access.reasoning_mode_enabled = True
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            service.reasoning_off(admin_id=1)
+
+        success, message = service.reasoning_status(admin_id=1)
+        assert success is True
+        assert "выключен ❌" in message
 
     def test_list_access_includes_reasoning_status(self) -> None:
         """list_access should include reasoning mode status in output."""
