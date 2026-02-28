@@ -173,6 +173,7 @@ class AdminCommandService:
         if not self.is_admin(admin_id):
             return False, "⛔ У вас нет прав администратора."
 
+        self._settings.reactions.enabled = True
         self._settings.access.reactions_enabled = True
         self._settings.save_access()
         return True, "✅ Реакции на сообщения включены."
@@ -189,6 +190,7 @@ class AdminCommandService:
         if not self.is_admin(admin_id):
             return False, "⛔ У вас нет прав администратора."
 
+        self._settings.reactions.enabled = False
         self._settings.access.reactions_enabled = False
         self._settings.save_access()
         return True, "✅ Реакции на сообщения выключены."

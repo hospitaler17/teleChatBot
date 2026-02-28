@@ -76,6 +76,7 @@ class TestAdminCommandService:
         """reactions_on should enable reactions when caller is admin."""
         s = _settings(admin_ids=[1])
         s.access.reactions_enabled = False
+        s.reactions.enabled = False
         af = AccessFilter(s)
         service = AdminCommandService(s, af)
 
@@ -86,11 +87,13 @@ class TestAdminCommandService:
         assert success is True
         assert "включены" in message
         assert s.access.reactions_enabled is True
+        assert s.reactions.enabled is True
 
     def test_reactions_off_as_admin(self, tmp_path: Path) -> None:
         """reactions_off should disable reactions when caller is admin."""
         s = _settings(admin_ids=[1])
         s.access.reactions_enabled = True
+        s.reactions.enabled = True
         af = AccessFilter(s)
         service = AdminCommandService(s, af)
 
@@ -101,6 +104,23 @@ class TestAdminCommandService:
         assert success is True
         assert "выключены" in message
         assert s.access.reactions_enabled is False
+        assert s.reactions.enabled is False
+
+    def test_reactions_on_enables_both_flags(self, tmp_path: Path) -> None:
+        """reactions_on should enable both config and runtime flags."""
+        s = _settings(admin_ids=[1])
+        s.reactions.enabled = False
+        s.access.reactions_enabled = True
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.config.settings.CONFIG_DIR", tmp_path)
+            success, _message = service.reactions_on(admin_id=1)
+
+        assert success is True
+        assert s.reactions.enabled is True
+        assert s.access.reactions_enabled is True
 
     def test_list_access_as_admin(self) -> None:
         """list_access should return access lists when caller is admin."""
