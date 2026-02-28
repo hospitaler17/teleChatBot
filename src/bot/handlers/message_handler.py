@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import time
 
@@ -23,6 +24,17 @@ logger = logging.getLogger(__name__)
 MSG_ERROR = "⚠️ Произошла ошибка при обращении к модели. Попробуйте позже."
 MSG_STREAMING_INDICATOR = "⏳ Генерация..."
 MSG_MULTI_PART_PREFIX = "часть"  # Used as: "(часть 2/3)"
+
+
+def _detect_image_mime(data: bytearray | bytes) -> str:
+    """Return MIME type based on image magic bytes, defaulting to image/jpeg."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:3] == b"GIF":
+        return "image/gif"
+    return "image/jpeg"
 
 
 def _truncate_safely(text: str, max_len: int, indicator: str) -> str:
@@ -284,6 +296,9 @@ class MessageHandler:
 
         await context.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
+        # Download image data if photo is attached
+        image_urls = await self._get_image_urls(message, context)
+
         try:
             # Determine if we should use streaming based on configuration
             use_streaming = self._settings.bot.enable_streaming
@@ -291,7 +306,7 @@ class MessageHandler:
             if use_streaming:
                 # Use streaming for progressive response
                 await self._handle_streaming_response(
-                    message, prompt, context_id, formatted_message
+                    message, prompt, context_id, formatted_message, image_urls
                 )
             else:
                 # Use non-streaming (original behavior)
@@ -308,7 +323,9 @@ class MessageHandler:
                     message, status_text, parse_mode=None
                 )
 
-                response = await self._mistral.generate(prompt, user_id=context_id)
+                response = await self._mistral.generate(
+                    prompt, user_id=context_id, image_urls=image_urls
+                )
                 response_text = response.content
 
                 # Store both user message and bot response in history
@@ -346,6 +363,7 @@ class MessageHandler:
         prompt: str,
         context_id: int | None,
         formatted_message: str,
+        image_urls: list[str] | None = None,
     ) -> None:
         """Handle streaming response with progressive message updates."""
         accumulated_content = ""
@@ -370,7 +388,7 @@ class MessageHandler:
 
         try:
             async for chunk_content, full_content, is_final in self._mistral.generate_stream(
-                prompt, user_id=context_id
+                prompt, user_id=context_id, image_urls=image_urls
             ):
                 accumulated_content = full_content
                 current_time = time.time()
@@ -508,6 +526,36 @@ class MessageHandler:
                         logger.error("Failed to send error message to user")
 
     # ------------------------------------------------------------------
+
+    async def _get_image_urls(
+        self, message: Message, context: ContextTypes.DEFAULT_TYPE
+    ) -> list[str] | None:
+        """Download photo from message and return as base64 data URI list.
+
+        Args:
+            message: Telegram message that may contain a photo
+            context: Telegram bot context for file download
+
+        Returns:
+            List with a single base64 data URI, or None if no photo
+        """
+        if not message.photo:
+            return None
+
+        try:
+            # Use the largest available photo (last in the list)
+            photo = message.photo[-1]
+            file = await context.bot.get_file(photo.file_id)
+            image_bytes = await file.download_as_bytearray()
+            mime = _detect_image_mime(image_bytes)
+            b64 = base64.b64encode(image_bytes).decode("utf-8")
+            data_url = f"data:{mime};base64,{b64}"
+            logger.info("Downloaded photo (%d bytes, %s) for vision processing",
+                        len(image_bytes), mime)
+            return [data_url]
+        except Exception:
+            logger.exception("Failed to download photo from Telegram")
+            return None
 
     def _extract_text_from_message(self, message: Message) -> str | None:
         """Extract text from various message types.
