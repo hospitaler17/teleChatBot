@@ -7,7 +7,7 @@ from src.api.conversation_memory import ConversationMemory
 
 def test_conversation_memory_basic():
     """Test basic memory storage and retrieval."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Add some messages
     memory.add_message(user_id=123, role="user", content="Hello")
@@ -29,7 +29,7 @@ def test_conversation_memory_basic():
 
 def test_conversation_memory_max_history():
     """Test that memory auto-truncates to max_history."""
-    memory = ConversationMemory(max_history=3)
+    memory = ConversationMemory(max_history=3, db_path=":memory:")
 
     # Add 6 messages (3 pairs)
     for i in range(3):
@@ -58,7 +58,7 @@ def test_conversation_memory_max_history():
 
 def test_conversation_memory_per_user():
     """Test that different users have separate histories."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Add messages for user 1
     memory.add_message(user_id=111, role="user", content="User 1 message")
@@ -84,7 +84,7 @@ def test_conversation_memory_per_user():
 
 def test_conversation_memory_clear():
     """Test clearing conversation history."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Add some messages
     memory.add_message(user_id=789, role="user", content="Message 1")
@@ -106,7 +106,7 @@ def test_conversation_memory_clear():
 
 def test_conversation_memory_empty_user():
     """Test getting messages for user with no history."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Get messages for a user that doesn't exist
     messages = memory.get_messages_for_api(user_id=999)

@@ -83,6 +83,8 @@ class MistralSettings(BaseModel):
         system_prompt: Optional system prompt to set the assistant's behavior
         enable_web_search: Enable web search to augment responses with current information
         conversation_history_size: Number of previous messages to include in context (default: 10)
+        conversation_db_path: Path to the SQLite database for conversation history storage.
+            Defaults to ``data/conversation_history.db`` relative to the project root.
         always_append_date: Always append current date to system prompt, regardless of keywords
         reasoning_mode: Enable chain-of-thought reasoning mode — adds a step-by-step thinking
             instruction to the system prompt for more detailed, explained responses
@@ -94,6 +96,7 @@ class MistralSettings(BaseModel):
     system_prompt: str = ""
     enable_web_search: bool = False
     conversation_history_size: int = 10
+    conversation_db_path: str = ""
     always_append_date: bool = False
     reasoning_mode: bool = False
 
