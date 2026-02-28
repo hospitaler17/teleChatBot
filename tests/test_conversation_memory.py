@@ -7,7 +7,7 @@ from src.api.conversation_memory import ConversationMemory
 
 def test_conversation_memory_basic():
     """Test basic memory storage and retrieval."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Add some messages
     memory.add_message(user_id=123, role="user", content="Hello")
@@ -29,7 +29,7 @@ def test_conversation_memory_basic():
 
 def test_conversation_memory_max_history():
     """Test that memory auto-truncates to max_history."""
-    memory = ConversationMemory(max_history=3)
+    memory = ConversationMemory(max_history=3, db_path=":memory:")
 
     # Add 6 messages (3 pairs)
     for i in range(3):
@@ -58,7 +58,7 @@ def test_conversation_memory_max_history():
 
 def test_conversation_memory_per_user():
     """Test that different users have separate histories."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Add messages for user 1
     memory.add_message(user_id=111, role="user", content="User 1 message")
@@ -84,7 +84,7 @@ def test_conversation_memory_per_user():
 
 def test_conversation_memory_clear():
     """Test clearing conversation history."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Add some messages
     memory.add_message(user_id=789, role="user", content="Message 1")
@@ -106,7 +106,7 @@ def test_conversation_memory_clear():
 
 def test_conversation_memory_empty_user():
     """Test getting messages for user with no history."""
-    memory = ConversationMemory(max_history=5)
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
 
     # Get messages for a user that doesn't exist
     messages = memory.get_messages_for_api(user_id=999)
@@ -117,11 +117,28 @@ def test_conversation_memory_empty_user():
     print("✅ test_conversation_memory_empty_user passed")
 
 
+def test_conversation_memory_close():
+    """Test that close shuts down the database connection."""
+    memory = ConversationMemory(max_history=5, db_path=":memory:")
+    memory.add_message(user_id=1, role="user", content="hi")
+    memory.close()
+
+    # After closing, operations should raise an error
+    try:
+        memory.add_message(user_id=1, role="user", content="after close")
+        raise AssertionError("Expected ProgrammingError after close")
+    except Exception:
+        pass
+
+    print("✅ test_conversation_memory_close passed")
+
+
 if __name__ == "__main__":
     test_conversation_memory_basic()
     test_conversation_memory_max_history()
     test_conversation_memory_per_user()
     test_conversation_memory_clear()
     test_conversation_memory_empty_user()
+    test_conversation_memory_close()
 
     print("\n✅ All conversation memory tests passed!")

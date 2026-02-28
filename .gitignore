@@ -28,6 +28,10 @@ env/
 config/config.yaml
 config/allowed_users.yaml
 
+# Database
+data/
+*.db
+
 # Coverage
 htmlcov/
 .coverage
