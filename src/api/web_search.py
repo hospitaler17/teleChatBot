@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import typing
 from enum import Enum
 from typing import Optional
 
@@ -10,6 +12,30 @@ import httpx
 from duckduckgo_search import DDGS
 
 logger = logging.getLogger(__name__)
+
+# Default SearXNG instances to try in order when the primary one fails.
+DEFAULT_SEARXNG_INSTANCES = [
+    "https://searx.be",
+    "https://search.sapti.me",
+    "https://searxng.ch",
+    "https://search.bus-hit.me",
+]
+
+# Realistic browser User-Agent to reduce blocks from public instances.
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
+# HTTP status codes considered retryable (temporary failures).
+_RETRYABLE_STATUS_CODES = {429, 503, 502}
+
+# Maximum number of retry attempts for a single provider call.
+_MAX_RETRIES = 2
+
+# Base delay (seconds) for exponential backoff between retries.
+_BACKOFF_BASE = 1.0
 
 
 class SearchProvider(Enum):
@@ -28,6 +54,7 @@ class WebSearchClient:
         google_api_key: Optional[str] = None,
         google_search_engine_id: Optional[str] = None,
         searxng_instance: str = "https://searx.be",
+        searxng_instances: Optional[list[str]] = None,
     ) -> None:
         """
         Initialize web search client.
@@ -35,14 +62,23 @@ class WebSearchClient:
         Args:
             google_api_key: Google Custom Search API key (optional)
             google_search_engine_id: Google Custom Search Engine ID (optional)
-            searxng_instance: SearXNG public instance URL
+            searxng_instance: Primary SearXNG public instance URL
+            searxng_instances: Additional SearXNG instances for fallback
         """
         self.google_api_key = google_api_key
         self.google_search_engine_id = google_search_engine_id
-        self.searxng_instance = searxng_instance
+
+        # Build the ordered list of SearXNG instances to try.
+        if searxng_instances is not None:
+            self.searxng_instances = list(searxng_instances)
+        else:
+            self.searxng_instances = list(DEFAULT_SEARXNG_INSTANCES)
+        # Ensure the primary instance is tried first.
+        if searxng_instance not in self.searxng_instances:
+            self.searxng_instances.insert(0, searxng_instance)
 
         # Determine available providers
-        self.providers = []
+        self.providers: list[SearchProvider] = []
         if google_api_key and google_search_engine_id:
             self.providers.append(SearchProvider.GOOGLE)
         self.providers.extend([SearchProvider.SEARXNG, SearchProvider.DUCKDUCKGO])
@@ -60,6 +96,8 @@ class WebSearchClient:
         Returns:
             Formatted search results as string
         """
+        errors: list[str] = []
+
         for provider in self.providers:
             try:
                 if provider == SearchProvider.GOOGLE:
@@ -74,11 +112,69 @@ class WebSearchClient:
                     return results
 
             except Exception as e:
-                logger.warning(f"Search failed for {provider.value}: {e}")
+                error_detail = f"{provider.value}: {e}"
+                errors.append(error_detail)
+                logger.warning(f"Search failed for {error_detail}")
                 continue
 
-        logger.error("All search providers failed")
+        logger.error(
+            "All search providers failed. Errors: %s",
+            "; ".join(errors) if errors else "no providers available",
+        )
         return ""
+
+    @staticmethod
+    async def _retry_with_backoff(
+        coro_factory: typing.Callable[[], typing.Awaitable[httpx.Response]],
+        provider_name: str,
+        max_retries: int = _MAX_RETRIES,
+    ) -> httpx.Response:
+        """Execute an HTTP request with exponential backoff on retryable errors.
+
+        Args:
+            coro_factory: A zero-argument callable that returns a fresh awaitable
+                          (e.g. ``lambda: client.get(...)``).
+            provider_name: Name used in log messages.
+            max_retries: Maximum number of retry attempts.
+
+        Returns:
+            The successful ``httpx.Response``.
+
+        Raises:
+            httpx.HTTPStatusError: If the request fails after all retries.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                response = await coro_factory()
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                last_exc = exc
+                snippet = exc.response.text[:200] if exc.response.text else ""
+                logger.warning(
+                    "%s returned HTTP %d on attempt %d/%d. Response snippet: %s",
+                    provider_name,
+                    status,
+                    attempt + 1,
+                    max_retries + 1,
+                    snippet,
+                )
+                if status in _RETRYABLE_STATUS_CODES and attempt < max_retries:
+                    delay = _BACKOFF_BASE * (2**attempt)
+                    logger.info(
+                        "Retrying %s in %.1f s (attempt %d/%d)",
+                        provider_name,
+                        delay,
+                        attempt + 2,
+                        max_retries + 1,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+        # Should not be reached, but keeps mypy happy.
+        raise last_exc  # type: ignore[misc]
 
     async def _search_google(self, query: str, count: int) -> str:
         """Search using Google Custom Search API."""
@@ -92,8 +188,10 @@ class WebSearchClient:
                     "num": min(count, 10),  # Google allows max 10
                 }
 
-                response = await client.get(url, params=params, timeout=10.0)
-                response.raise_for_status()
+                response = await self._retry_with_backoff(
+                    lambda: client.get(url, params=params, timeout=10.0),
+                    provider_name="Google",
+                )
                 data = response.json()
 
                 items = data.get("items", [])
@@ -121,56 +219,119 @@ class WebSearchClient:
             raise
 
     async def _search_searxng(self, query: str, count: int) -> str:
-        """Search using SearXNG public instance."""
-        try:
-            async with httpx.AsyncClient() as client:
-                url = f"{self.searxng_instance}/search"
-                params = {"q": query, "format": "json", "language": "ru", "safesearch": "0"}
+        """Search using SearXNG public instances with instance-level fallback."""
+        last_error: Exception | None = None
 
-                response = await client.get(
-                    url, params=params, timeout=15.0, headers={"User-Agent": "teleChatBot/1.0"}
+        for instance_url in self.searxng_instances:
+            try:
+                result = await self._search_searxng_instance(instance_url, query, count)
+                if result:
+                    return result
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                snippet = e.response.text[:200] if e.response.text else ""
+                logger.warning(
+                    "SearXNG instance %s returned HTTP %d. "
+                    "User-Agent: %s. Response snippet: %s",
+                    instance_url,
+                    status,
+                    DEFAULT_USER_AGENT[:60],
+                    snippet,
                 )
-                response.raise_for_status()
-                data = response.json()
+                last_error = e
+                if status == 403:
+                    logger.info(
+                        "SearXNG instance %s blocked (403), trying next instance",
+                        instance_url,
+                    )
+                    continue
+                raise
+            except Exception as e:
+                logger.error(f"SearXNG search error for {instance_url}: {e}")
+                last_error = e
+                continue
 
-                results_data = data.get("results", [])
-                if not results_data:
-                    return ""
+        if last_error is not None:
+            raise last_error
+        return ""
 
-                results = []
-                for idx, item in enumerate(results_data[:count], 1):
-                    title = item.get("title", "")
-                    content = item.get("content", "")
-                    url_link = item.get("url", "")
-                    results.append(f"{idx}. {title}\n{content}\nИсточник: {url_link}")
+    async def _search_searxng_instance(
+        self, instance_url: str, query: str, count: int
+    ) -> str:
+        """Search a single SearXNG instance (with retry for retryable codes)."""
+        async with httpx.AsyncClient() as client:
+            url = f"{instance_url}/search"
+            params = {"q": query, "format": "json", "language": "ru", "safesearch": "0"}
+            headers = {"User-Agent": DEFAULT_USER_AGENT}
 
-                if results:
-                    logger.info(f"SearXNG returned {len(results)} results")
-                    return "\n\n".join(results)
+            response = await self._retry_with_backoff(
+                lambda: client.get(url, params=params, timeout=15.0, headers=headers),
+                provider_name=f"SearXNG({instance_url})",
+            )
+            data = response.json()
+
+            results_data = data.get("results", [])
+            if not results_data:
                 return ""
 
-        except Exception as e:
-            logger.error(f"SearXNG search error: {e}")
-            raise
+            results = []
+            for idx, item in enumerate(results_data[:count], 1):
+                title = item.get("title", "")
+                content = item.get("content", "")
+                url_link = item.get("url", "")
+                results.append(f"{idx}. {title}\n{content}\nИсточник: {url_link}")
+
+            if results:
+                logger.info(
+                    f"SearXNG ({instance_url}) returned {len(results)} results"
+                )
+                return "\n\n".join(results)
+            return ""
 
     async def _search_duckduckgo(self, query: str, count: int) -> str:
-        """Search using DuckDuckGo (last fallback)."""
-        try:
-            with DDGS() as ddgs:
-                results_list = list(ddgs.text(query, max_results=count))
+        """Search using DuckDuckGo with retry on ratelimit errors."""
+        last_error: Exception | None = None
 
-                results = []
-                for idx, result in enumerate(results_list[:count], 1):
-                    title = result.get("title", "")
-                    body = result.get("body", "")
-                    url = result.get("href", "")
-                    results.append(f"{idx}. {title}\n{body}\nИсточник: {url}")
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                with DDGS() as ddgs:
+                    results_list = list(ddgs.text(query, max_results=count))
 
-                if results:
-                    logger.info(f"DuckDuckGo returned {len(results)} results")
-                    return "\n\n".join(results)
-                return ""
+                    results = []
+                    for idx, result in enumerate(results_list[:count], 1):
+                        title = result.get("title", "")
+                        body = result.get("body", "")
+                        url = result.get("href", "")
+                        results.append(f"{idx}. {title}\n{body}\nИсточник: {url}")
 
-        except Exception as e:
-            logger.error(f"DuckDuckGo search error: {e}")
-            raise
+                    if results:
+                        logger.info(f"DuckDuckGo returned {len(results)} results")
+                        return "\n\n".join(results)
+                    return ""
+
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+                is_ratelimit = "ratelimit" in error_str or "202" in error_str
+                logger.warning(
+                    "DuckDuckGo error on attempt %d/%d: %s (ratelimit=%s)",
+                    attempt + 1,
+                    _MAX_RETRIES + 1,
+                    e,
+                    is_ratelimit,
+                )
+                if is_ratelimit and attempt < _MAX_RETRIES:
+                    delay = _BACKOFF_BASE * (2**attempt)
+                    logger.info(
+                        "Retrying DuckDuckGo in %.1f s (attempt %d/%d)",
+                        delay,
+                        attempt + 2,
+                        _MAX_RETRIES + 1,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+
+        if last_error is not None:
+            raise last_error
+        return ""
