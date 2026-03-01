@@ -25,6 +25,7 @@ HELP_TEXT = (
     "/start — приветствие\n"
     "/help — эта справка\n"
     "/info — информация о пользователе и использовании контекста\n"
+    "/clear — очистить историю сообщений\n"
 )
 
 
@@ -56,6 +57,26 @@ class CommandHandler:
             return
         text = HELP_TEXT.replace("{username}", self._bot_username)
         await update.message.reply_text(text, parse_mode="Markdown")
+
+    async def clear(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """``/clear`` command — clear conversation history for the current context."""
+        if not self._access.check(update):
+            return
+
+        message = update.message
+        if message is None:
+            return
+
+        chat_type = message.chat.type
+        if chat_type == "private":
+            context_id = message.from_user.id if message.from_user else None
+        else:
+            context_id = message.chat.id
+
+        if self._mistral is not None and context_id is not None:
+            self._mistral.clear_history(context_id)
+
+        await message.reply_text("🗑 История сообщений очищена.", parse_mode="Markdown")
 
     async def info(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """``/info`` command — display user ID, context usage and token stats."""

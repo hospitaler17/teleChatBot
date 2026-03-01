@@ -77,6 +77,7 @@ def create_bot(settings: AppSettings) -> Application:
     app.add_handler(TGCommandHandler("start", cmd.start))
     app.add_handler(TGCommandHandler("help", cmd.help))
     app.add_handler(TGCommandHandler("info", cmd.info))
+    app.add_handler(TGCommandHandler("clear", cmd.clear))
 
     # Admin commands
     app.add_handler(TGCommandHandler("admin_add_user", admin.add_user))

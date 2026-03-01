@@ -172,6 +172,74 @@ class TestCommandHandler:
         mistral.get_context_info.assert_called_once_with(100)
         update.message.reply_text.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_clear_allowed(self) -> None:
+        """clear command should clear history and send confirmation for allowed user."""
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        af = AccessFilter(s)
+        mistral = MagicMock()
+        mistral.clear_history = MagicMock()
+        handler = CommandHandler(af, "testbot", mistral_client=mistral)
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        await handler.clear(update, ctx)
+        mistral.clear_history.assert_called_once_with(1)
+        update.message.reply_text.assert_awaited_once()
+        call_text = update.message.reply_text.call_args[0][0]
+        assert "очищена" in call_text
+
+    @pytest.mark.asyncio
+    async def test_clear_disallowed(self) -> None:
+        """clear command should not do anything for disallowed user."""
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        af = AccessFilter(s)
+        mistral = MagicMock()
+        mistral.clear_history = MagicMock()
+        handler = CommandHandler(af, "testbot", mistral_client=mistral)
+        update = _update(user_id=99)
+        ctx = MagicMock()
+        await handler.clear(update, ctx)
+        mistral.clear_history.assert_not_called()
+        update.message.reply_text.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_clear_without_mistral_client(self) -> None:
+        """clear command should still send confirmation when no MistralClient is provided."""
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        af = AccessFilter(s)
+        handler = CommandHandler(af, "testbot")  # no mistral_client
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        await handler.clear(update, ctx)
+        update.message.reply_text.assert_awaited_once()
+        call_text = update.message.reply_text.call_args[0][0]
+        assert "очищена" in call_text
+
+    @pytest.mark.asyncio
+    async def test_clear_group_chat(self) -> None:
+        """clear command should use chat_id as context_id in group chats."""
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        s.access.allowed_chat_ids = [100]
+        af = AccessFilter(s)
+        mistral = MagicMock()
+        mistral.clear_history = MagicMock()
+        handler = CommandHandler(af, "testbot", mistral_client=mistral)
+        update = _update(user_id=1, chat_type="group")
+        update.message.chat.id = 100
+        ctx = MagicMock()
+        with patch.object(af, "check", return_value=True):
+            await handler.clear(update, ctx)
+        mistral.clear_history.assert_called_once_with(100)
+        update.message.reply_text.assert_awaited_once()
+
 
 # ------------------------------------------------------------------
 # MessageHandler
