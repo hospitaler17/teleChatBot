@@ -91,6 +91,87 @@ class TestCommandHandler:
         await handler.help(update, ctx)
         update.message.reply_text.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_info_allowed(self) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        af = AccessFilter(s)
+        mistral = MagicMock()
+        mistral.get_context_info = MagicMock(return_value={
+            "used": 4,
+            "limit": 20,
+            "cached_tokens": 50,
+            "system_tokens": 10,
+            "total_tokens": 60,
+        })
+        handler = CommandHandler(af, "testbot", mistral_client=mistral)
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        await handler.info(update, ctx)
+        update.message.reply_text.assert_awaited_once()
+        call_text = update.message.reply_text.call_args[0][0]
+        assert "1" in call_text  # user_id
+        assert "4/20" in call_text  # context usage
+        assert "20%" in call_text  # percentage
+        assert "50" in call_text  # cached tokens
+        assert "10" in call_text  # system tokens
+        assert "60" in call_text  # total tokens
+
+    @pytest.mark.asyncio
+    async def test_info_disallowed(self) -> None:
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        af = AccessFilter(s)
+        handler = CommandHandler(af, "testbot")
+        update = _update(user_id=99)
+        ctx = MagicMock()
+        await handler.info(update, ctx)
+        update.message.reply_text.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_info_without_mistral_client(self) -> None:
+        """info command should still work when no MistralClient is provided."""
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        af = AccessFilter(s)
+        handler = CommandHandler(af, "testbot")  # no mistral_client
+        update = _update(user_id=1)
+        ctx = MagicMock()
+        await handler.info(update, ctx)
+        update.message.reply_text.assert_awaited_once()
+        call_text = update.message.reply_text.call_args[0][0]
+        assert "1" in call_text  # user_id
+
+    @pytest.mark.asyncio
+    async def test_info_group_chat(self) -> None:
+        """info command should use chat_id as context_id in group chats."""
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        s.access.allowed_chat_ids = [100]
+        af = AccessFilter(s)
+        mistral = MagicMock()
+        mistral.get_context_info = MagicMock(return_value={
+            "used": 2,
+            "limit": 20,
+            "cached_tokens": 30,
+            "system_tokens": 5,
+            "total_tokens": 35,
+        })
+        handler = CommandHandler(af, "testbot", mistral_client=mistral)
+        update = _update(user_id=1, chat_type="group")
+        update.message.chat.id = 100
+        ctx = MagicMock()
+        # Patch access check to pass (access control is tested separately)
+        with patch.object(af, "check", return_value=True):
+            await handler.info(update, ctx)
+        # Should call get_context_info with the chat_id (100) not user_id (1)
+        mistral.get_context_info.assert_called_once_with(100)
+        update.message.reply_text.assert_awaited_once()
+
 
 # ------------------------------------------------------------------
 # MessageHandler
