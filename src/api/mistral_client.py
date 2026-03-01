@@ -442,12 +442,10 @@ class MistralClient:
             context_id: Context ID (user_id for private chats, chat_id for groups)
 
         Returns:
-            Dictionary with keys:
-                - ``used``: number of messages currently in context
-                - ``limit``: maximum number of messages (max_history * 2)
-                - ``cached_tokens``: estimated tokens from cached messages
-                - ``system_tokens``: estimated tokens from the system prompt
-                - ``total_tokens``: sum of cached and system tokens
+            dict with keys ``used`` (messages in context), ``limit`` (max messages),
+            ``cached_tokens`` (estimated tokens for cached messages),
+            ``system_tokens`` (estimated tokens for the system prompt), and
+            ``total_tokens`` (sum of cached and system tokens).
         """
         history = self._memory.get_history(context_id)
         # Only count user/assistant messages (not system context entries)
