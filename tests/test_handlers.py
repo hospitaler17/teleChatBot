@@ -8,7 +8,11 @@ import pytest
 
 from src.bot.handlers.admin_handler import AdminHandler
 from src.bot.handlers.command_handler import CommandHandler
-from src.bot.handlers.message_handler import MessageHandler, _split_text
+from src.bot.handlers.message_handler import (
+    MessageHandler,
+    _send_typing_periodically,
+    _split_text,
+)
 from src.config.settings import AccessSettings, AdminSettings, AppSettings, BotSettings
 
 # ------------------------------------------------------------------
@@ -531,3 +535,90 @@ class TestSearchUnavailableNotification:
 
         edit_call_text = status_msg.edit_text.call_args[0][0]
         assert "Поиск временно недоступен" not in edit_call_text
+
+
+# ------------------------------------------------------------------
+# Typing indicator
+# ------------------------------------------------------------------
+
+
+class TestTypingIndicator:
+    @pytest.mark.asyncio
+    async def test_send_typing_periodically_sends_action_after_interval(self) -> None:
+        """_send_typing_periodically should sleep first and then call send_chat_action."""
+        import asyncio
+
+        bot = MagicMock()
+        bot.send_chat_action = AsyncMock()
+
+        # Use a tiny but non-zero interval to better simulate real timing
+        task = asyncio.create_task(_send_typing_periodically(bot, chat_id=42, interval=0.01))
+        # Wait for the interval to elapse and the action to fire
+        await asyncio.sleep(0.05)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        bot.send_chat_action.assert_awaited_with(
+            chat_id=42, action=pytest.importorskip("telegram").constants.ChatAction.TYPING
+        )
+
+    @pytest.mark.asyncio
+    async def test_send_typing_periodically_does_not_send_before_interval(self) -> None:
+        """_send_typing_periodically should NOT call send_chat_action before the interval."""
+        import asyncio
+
+        bot = MagicMock()
+        bot.send_chat_action = AsyncMock()
+
+        # Large interval — task should not send before we cancel it
+        task = asyncio.create_task(_send_typing_periodically(bot, chat_id=42, interval=100.0))
+        # Yield once to let the task start its sleep
+        await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        bot.send_chat_action.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_handle_sends_typing_action(self) -> None:
+        """handle() must call send_chat_action with TYPING before generating a response."""
+        from telegram.constants import ChatAction
+
+        from src.api.mistral_client import GenerateResponse
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        s.bot.enable_streaming = False
+
+        mistral = MagicMock()
+        mistral.generate = AsyncMock(
+            return_value=GenerateResponse(
+                content="hello",
+                model="mistral-small-latest",
+            )
+        )
+        mistral._web_search = None
+        mistral._should_use_web_search = MagicMock(return_value=False)
+        af = AccessFilter(s)
+        handler = MessageHandler(s, mistral, af)
+
+        update = _update(user_id=1, text="hi")
+        status_msg = AsyncMock()
+        status_msg.edit_text = AsyncMock()
+        update.message.reply_text = AsyncMock(return_value=status_msg)
+        ctx = MagicMock()
+        ctx.bot.send_chat_action = AsyncMock()
+
+        await handler.handle(update, ctx)
+
+        ctx.bot.send_chat_action.assert_awaited()
+        first_call = ctx.bot.send_chat_action.call_args_list[0]
+        assert first_call.kwargs.get("action") == ChatAction.TYPING or (
+            len(first_call.args) >= 2 and first_call.args[1] == ChatAction.TYPING
+        )
