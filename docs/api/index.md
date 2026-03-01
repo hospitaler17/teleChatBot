@@ -11,6 +11,7 @@ admin_commands
 conversation_memory
 mistral_client
 model_selector
+provider_router
 reaction_analyzer
 web_search
 bot
