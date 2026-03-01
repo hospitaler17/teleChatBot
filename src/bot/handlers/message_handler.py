@@ -223,6 +223,30 @@ async def _safe_send_message(
     return None
 
 
+async def _send_typing_periodically(
+    bot, chat_id: int, interval: float = 4.0
+) -> None:
+    """Keep the Telegram "typing" indicator alive until this task is cancelled.
+
+    Telegram automatically clears the typing status after ~5 seconds, so we
+    re-send it every *interval* seconds to maintain it for the full duration
+    of response generation.  The caller is expected to send the *first* typing
+    action itself before starting this task; this coroutine therefore sleeps
+    first and only then repeats the action.
+    """
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+            except Exception:
+                logger.warning(
+                    "Failed to refresh typing action for chat %d", chat_id, exc_info=True
+                )
+    except asyncio.CancelledError:
+        pass
+
+
 class MessageHandler:
     """Processes incoming text messages via the Mistral model."""
 
@@ -319,7 +343,14 @@ class MessageHandler:
                 self._mistral._memory.add_message(context_id, "user", formatted_message)
             return
 
+        # Keep the Telegram "typing" indicator alive for the full duration of
+        # response generation.  The indicator auto-clears after ~5 s, so we
+        # refresh it every 4 s via a background task that is cancelled once
+        # the response (or an error) has been delivered to the user.
         await context.bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+        typing_task = asyncio.create_task(
+            _send_typing_periodically(context.bot, message.chat.id)
+        )
 
         # Download image data if photo is attached
         image_urls = await self._get_image_urls(message, context)
@@ -387,7 +418,12 @@ class MessageHandler:
         except Exception:
             logger.exception("Failed to generate response")
             await message.reply_text(MSG_ERROR)
-            return
+        finally:
+            typing_task.cancel()
+            try:
+                await typing_task
+            except asyncio.CancelledError:
+                pass
 
     async def _handle_streaming_response(
         self,
