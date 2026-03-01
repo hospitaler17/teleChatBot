@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import Any, Self
 
 import yaml
 from pydantic import BaseModel, Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from yaml.nodes import MappingNode
-
-if TYPE_CHECKING:
-    from src.api.bot_database import BotDatabase
 
 logger = logging.getLogger(__name__)
 
