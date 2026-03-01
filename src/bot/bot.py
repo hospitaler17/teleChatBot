@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 
+from telegram.error import NetworkError, TelegramError, TimedOut
 from telegram.ext import (
     Application,
+    ContextTypes,
     filters,
 )
 from telegram.ext import (
@@ -25,6 +27,36 @@ from src.config.settings import AppSettings
 logger = logging.getLogger(__name__)
 
 
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global error handler — logs Telegram API errors without crashing the bot.
+
+    Transient network errors (NetworkError, TimedOut) are logged at WARNING level
+    so that operators can monitor connectivity issues without flooding logs.
+    All other errors are logged at ERROR level with a full traceback.
+    """
+    error = context.error
+
+    if isinstance(error, (NetworkError, TimedOut)):
+        logger.warning(
+            "Transient Telegram API error (will recover automatically): %s: %s",
+            type(error).__name__,
+            error,
+        )
+    elif isinstance(error, TelegramError):
+        logger.error(
+            "Telegram API error: %s: %s",
+            type(error).__name__,
+            error,
+            exc_info=error,
+        )
+    else:
+        logger.exception(
+            "Unexpected error while processing update %s",
+            update,
+            exc_info=error,
+        )
+
+
 def create_bot(settings: AppSettings) -> Application:
     """Build and return a fully configured ``Application``."""
     router = ProviderRouter(settings)
@@ -37,6 +69,9 @@ def create_bot(settings: AppSettings) -> Application:
     admin = AdminHandler(settings, access_filter)
 
     app = Application.builder().token(settings.telegram_bot_token).build()
+
+    # Global error handler — recovers from transient Telegram API / network errors
+    app.add_error_handler(_error_handler)
 
     # Basic commands
     app.add_handler(TGCommandHandler("start", cmd.start))

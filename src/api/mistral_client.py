@@ -42,6 +42,7 @@ class GenerateResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     source_urls: list[str] = field(default_factory=list)
+    search_unavailable: bool = False  # True when all web search providers failed
 
     @property
     def total_tokens(self) -> int:
@@ -170,6 +171,7 @@ class MistralClient:
             # Perform web search if enabled and query seems to need it
             web_results = None
             source_urls: list[str] = []
+            search_unavailable = False
             if self._web_search and self._should_use_web_search(prompt):
                 logger.info("Performing web search for query")
                 web_results = await self._web_search.search(prompt, count=3)
@@ -177,6 +179,11 @@ class MistralClient:
                     system_content += f"\n\nWeb search results:\n{web_results.text}"
                     source_urls = web_results.urls
                     logger.info("Added web search results to context")
+                else:
+                    search_unavailable = True
+                    logger.warning(
+                        "All web search providers failed; continuing with local knowledge"
+                    )
 
             # Add system message if present
             if system_content:
@@ -257,6 +264,7 @@ class MistralClient:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 source_urls=source_urls,
+                search_unavailable=search_unavailable,
             )
         except (ValueError, TypeError):
             # Re-raise validation errors with their specific messages
@@ -346,6 +354,13 @@ class MistralClient:
                     system_content += f"\n\nWeb search results:\n{web_results.text}"
                     source_urls = web_results.urls
                     logger.info("Added web search results to context")
+                else:
+                    logger.warning(
+                        "All web search providers failed; continuing with local knowledge"
+                    )
+                    # Note: search_unavailable is not signalled through the streaming
+                    # tuple to avoid a breaking change to the 4-element yield contract.
+                    # The warning above is sufficient for operator visibility.
 
             if system_content:
                 messages.append(SystemMessage(role="system", content=system_content))

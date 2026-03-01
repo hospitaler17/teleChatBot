@@ -398,3 +398,136 @@ class TestAdminHandler:
 
         # All should have rejected the user
         assert update.message.reply_text.call_count == 3
+
+
+# ------------------------------------------------------------------
+# _error_handler
+# ------------------------------------------------------------------
+
+
+class TestErrorHandler:
+    @pytest.mark.asyncio
+    async def test_network_error_logs_warning(self, caplog) -> None:
+        """NetworkError should be logged at WARNING without re-raising."""
+        import logging
+
+        from telegram.error import NetworkError
+
+        from src.bot.bot import _error_handler
+
+        ctx = MagicMock()
+        ctx.error = NetworkError("502 Bad Gateway")
+
+        with caplog.at_level(logging.WARNING, logger="src.bot.bot"):
+            await _error_handler(object(), ctx)
+
+        assert any("NetworkError" in r.message for r in caplog.records)
+        assert all(r.levelno < logging.ERROR for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_timed_out_logs_warning(self, caplog) -> None:
+        """TimedOut should be logged at WARNING without re-raising."""
+        import logging
+
+        from telegram.error import TimedOut
+
+        from src.bot.bot import _error_handler
+
+        ctx = MagicMock()
+        ctx.error = TimedOut()
+
+        with caplog.at_level(logging.WARNING, logger="src.bot.bot"):
+            await _error_handler(object(), ctx)
+
+        assert any("TimedOut" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_telegram_error_logs_error(self, caplog) -> None:
+        """Non-transient TelegramError should be logged at ERROR level."""
+        import logging
+
+        from telegram.error import TelegramError
+
+        from src.bot.bot import _error_handler
+
+        ctx = MagicMock()
+        ctx.error = TelegramError("some api error")
+
+        with caplog.at_level(logging.ERROR, logger="src.bot.bot"):
+            await _error_handler(object(), ctx)
+
+        assert any(r.levelno == logging.ERROR for r in caplog.records)
+
+
+# ------------------------------------------------------------------
+# Search unavailable notification
+# ------------------------------------------------------------------
+
+
+class TestSearchUnavailableNotification:
+    @pytest.mark.asyncio
+    async def test_search_unavailable_prepends_notice(self) -> None:
+        """When search_unavailable=True, response should start with the notice."""
+        from src.api.mistral_client import GenerateResponse
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        s.bot.enable_streaming = False
+
+        mistral = MagicMock()
+        mistral.generate = AsyncMock(
+            return_value=GenerateResponse(
+                content="answer text",
+                model="mistral-small-latest",
+                search_unavailable=True,
+            )
+        )
+        mistral._web_search = MagicMock()  # non-None to trigger web search status message
+        mistral._should_use_web_search = MagicMock(return_value=True)
+        af = AccessFilter(s)
+        handler = MessageHandler(s, mistral, af)
+
+        update = _update(user_id=1, text="what's new?")
+        status_msg = AsyncMock()
+        status_msg.edit_text = AsyncMock()
+        update.message.reply_text = AsyncMock(return_value=status_msg)
+        ctx = MagicMock()
+        ctx.bot.send_chat_action = AsyncMock()
+        await handler.handle(update, ctx)
+
+        # The edited text should include the search-unavailable notice
+        edit_call_text = status_msg.edit_text.call_args[0][0]
+        assert "Поиск временно недоступен" in edit_call_text
+
+    @pytest.mark.asyncio
+    async def test_no_notice_when_search_available(self) -> None:
+        """When search_unavailable=False, no notice should be prepended."""
+        from src.api.mistral_client import GenerateResponse
+        from src.bot.filters.access_filter import AccessFilter
+
+        s = _settings(allowed_users=[1])
+        s.bot.enable_streaming = False
+
+        mistral = MagicMock()
+        mistral.generate = AsyncMock(
+            return_value=GenerateResponse(
+                content="answer text",
+                model="mistral-small-latest",
+                search_unavailable=False,
+            )
+        )
+        mistral._web_search = None
+        mistral._should_use_web_search = MagicMock(return_value=False)
+        af = AccessFilter(s)
+        handler = MessageHandler(s, mistral, af)
+
+        update = _update(user_id=1, text="hello")
+        status_msg = AsyncMock()
+        status_msg.edit_text = AsyncMock()
+        update.message.reply_text = AsyncMock(return_value=status_msg)
+        ctx = MagicMock()
+        ctx.bot.send_chat_action = AsyncMock()
+        await handler.handle(update, ctx)
+
+        edit_call_text = status_msg.edit_text.call_args[0][0]
+        assert "Поиск временно недоступен" not in edit_call_text

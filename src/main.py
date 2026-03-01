@@ -5,10 +5,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import time
+
+from telegram.error import NetworkError, TimedOut
 
 from src.bot.bot import create_bot
 from src.cli.cli_chat import run_cli
 from src.config.settings import AppSettings
+
+# Exponential backoff settings for Telegram polling restart after network errors.
+_POLLING_BACKOFF_BASE = 1.0   # initial retry delay (seconds)
+_POLLING_BACKOFF_MAX = 60.0   # maximum retry delay (seconds)
 
 
 def main() -> None:
@@ -44,11 +51,38 @@ def main() -> None:
             sys.exit(1)
 
         logger.info("Starting teleChatBot in Telegram mode...")
+        _run_polling_with_backoff(settings, logger)
+
+
+def _run_polling_with_backoff(settings: AppSettings, logger: logging.Logger) -> None:
+    """Run bot polling, restarting with exponential backoff on network errors.
+
+    ``app.run_polling()`` is a *synchronous* blocking call that internally starts
+    its own event loop via ``asyncio.run()``.  Between restarts (after the loop
+    exits) we are in a plain synchronous context with no active event loop, so
+    ``time.sleep()`` is correct here — ``asyncio.sleep()`` cannot be awaited
+    outside an event loop.
+    """
+    delay = _POLLING_BACKOFF_BASE
+    while True:
         app = create_bot(settings)
         try:
             app.run_polling()
+            # Clean exit (e.g. KeyboardInterrupt propagated as SystemExit) — stop looping.
+            return
         except KeyboardInterrupt:
             logger.info("Polling interrupted by user (Ctrl+C). Shutting down.")
+            return
+        except (NetworkError, TimedOut) as exc:
+            logger.warning(
+                "Network error during polling (%s: %s). "
+                "Restarting in %.1f s (exponential backoff).",
+                type(exc).__name__,
+                exc,
+                delay,
+            )
+            time.sleep(delay)
+            delay = min(delay * 2, _POLLING_BACKOFF_MAX)
         except Exception:
             logger.exception("Unhandled exception while polling")
             sys.exit(1)
