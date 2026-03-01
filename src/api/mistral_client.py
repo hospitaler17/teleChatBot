@@ -435,6 +435,14 @@ class MistralClient:
             logger.exception("Mistral streaming API call failed")
             raise
 
+    def clear_history(self, context_id: int) -> None:
+        """Clear conversation history for a given context.
+
+        Args:
+            context_id: Context ID (user_id for private chats, chat_id for groups)
+        """
+        self._memory.clear_history(context_id)
+
     def get_context_info(self, context_id: int) -> dict:
         """Return context usage and token statistics for a given context ID.
 
