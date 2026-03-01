@@ -9,6 +9,7 @@ import time
 
 from telegram.error import NetworkError, TimedOut
 
+from src.api.bot_database import DEFAULT_DB_PATH as BOT_DB_PATH
 from src.bot.bot import create_bot
 from src.cli.cli_chat import run_cli
 from src.config.settings import AppSettings
@@ -26,7 +27,7 @@ def main() -> None:
     )
     logger = logging.getLogger(__name__)
 
-    settings = AppSettings.load()
+    settings = AppSettings.load(db_path=BOT_DB_PATH)
 
     # Check for required API key
     if not settings.mistral_api_key:

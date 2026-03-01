@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from yaml.nodes import MappingNode
+
+if TYPE_CHECKING:
+    from src.api.bot_database import BotDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +239,9 @@ class AppSettings(BaseSettings):
     from YAML configuration files via the ``load()`` class method.
     """
 
-    model_config = SettingsConfigDict(env_prefix="", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="", env_file=".env", extra="ignore", arbitrary_types_allowed=True
+    )
 
     telegram_bot_token: str = ""
     mistral_api_key: str = ""
@@ -252,12 +257,28 @@ class AppSettings(BaseSettings):
     reactions: ReactionSettings = Field(default_factory=ReactionSettings)
     status_messages: StatusMessages = Field(default_factory=StatusMessages)
 
+    # Private reference to the bot database (not a Pydantic field).
+    # Set by load() after the model is constructed.
+    _db: Any = PrivateAttr(default=None)
+
     @classmethod
-    def load(cls, config_dir: Path | None = None) -> Self:
+    def load(
+        cls,
+        config_dir: Path | None = None,
+        db_path: str | Path | None = None,
+    ) -> Self:
         """Create settings by merging env vars and YAML config files.
+
+        After constructing the settings from YAML, a :class:`~src.api.bot_database.BotDatabase`
+        is opened (or created).  If the database tables are empty the YAML values are
+        imported into the DB; otherwise the DB values override the YAML values so that
+        any runtime changes made via admin commands survive restarts.
 
         Args:
             config_dir: Directory containing config files. Defaults to CONFIG_DIR.
+            db_path: Path passed to :class:`~src.api.bot_database.BotDatabase`.
+                Defaults to the shared ``data/conversation_history.db`` file.
+                Pass ``":memory:"`` in tests to avoid writing to disk.
 
         Returns:
             AppSettings instance with loaded configuration
@@ -375,7 +396,7 @@ class AppSettings(BaseSettings):
             groq_settings.model,
         )
 
-        return cls(
+        settings = cls(
             mistral=mistral_settings,
             groq=groq_settings,
             bot=BotSettings(**yaml_data.get("bot", {})),
@@ -384,9 +405,46 @@ class AppSettings(BaseSettings):
             reactions=ReactionSettings(**yaml_data.get("reactions", {})),
             status_messages=StatusMessages(**yaml_data.get("status_messages", {})),
         )
+        if db_path is not None:
+            settings._init_db(db_path)
+        return settings
+
+    def _init_db(self, db_path: str | Path | None = None) -> None:
+        """Open the bot database and sync settings.
+
+        If the database is empty, the current in-memory values (loaded from
+        YAML) are imported.  Otherwise the DB values override the in-memory
+        values so that runtime admin-command changes survive restarts.
+
+        Args:
+            db_path: Passed through to :class:`~src.api.bot_database.BotDatabase`.
+        """
+        from src.api.bot_database import BotDatabase  # local import avoids circular dep
+
+        db = BotDatabase(db_path)
+        if db.is_empty():
+            db.initialize_from_config(
+                user_ids=self.access.allowed_user_ids,
+                chat_ids=self.access.allowed_chat_ids,
+                reactions_enabled=self.access.reactions_enabled,
+                web_search_enabled=self.mistral.enable_web_search,
+                reasoning_mode_enabled=self.access.reasoning_mode_enabled,
+            )
+        else:
+            db_settings = db.get_settings()
+            self.access.allowed_user_ids = db.get_users()
+            self.access.allowed_chat_ids = db.get_chats()
+            if "reactions_enabled" in db_settings:
+                self.access.reactions_enabled = db_settings["reactions_enabled"]
+            if "reasoning_mode_enabled" in db_settings:
+                self.access.reasoning_mode_enabled = db_settings["reasoning_mode_enabled"]
+            if "web_search_enabled" in db_settings:
+                self.mistral.enable_web_search = db_settings["web_search_enabled"]
+            logger.info("Loaded settings from bot database")
+        self._db = db
 
     def save_access(self, config_dir: Path | None = None) -> None:
-        """Persist the current access settings back to YAML."""
+        """Persist the current access settings back to YAML and the bot database."""
         config_dir = config_dir or CONFIG_DIR
         config_dir.mkdir(parents=True, exist_ok=True)
         access_path = config_dir / "allowed_users.yaml"
@@ -400,3 +458,12 @@ class AppSettings(BaseSettings):
         with open(access_path, "w", encoding="utf-8") as fh:
             yaml.safe_dump(data, fh, default_flow_style=False)
         logger.info("Saved access list to %s", access_path)
+
+        if self._db is not None:
+            self._db.sync_from_settings(
+                user_ids=self.access.allowed_user_ids,
+                chat_ids=self.access.allowed_chat_ids,
+                reactions_enabled=self.access.reactions_enabled,
+                web_search_enabled=self.mistral.enable_web_search,
+                reasoning_mode_enabled=self.access.reasoning_mode_enabled,
+            )

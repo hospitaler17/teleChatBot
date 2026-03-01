@@ -78,6 +78,9 @@ class CLIChat:
         print("    /admin_reasoning_on  - Enable chain-of-thought reasoning mode")
         print("    /admin_reasoning_off - Disable chain-of-thought reasoning mode")
         print("    /admin_reasoning_status - Show reasoning mode configuration")
+        print("    /admin_web_search_on  - Enable web search")
+        print("    /admin_web_search_off - Disable web search")
+        print("    /admin_web_search_status - Show web search status")
         print("=" * 70)
         print()
         # Flush stdout to ensure banner is visible immediately, especially on Windows
@@ -101,6 +104,9 @@ class CLIChat:
         print("    /admin_reasoning_on  - Enable chain-of-thought reasoning mode")
         print("    /admin_reasoning_off - Disable chain-of-thought reasoning mode")
         print("    /admin_reasoning_status - Show reasoning mode configuration")
+        print("    /admin_web_search_on  - Enable web search")
+        print("    /admin_web_search_off - Disable web search")
+        print("    /admin_web_search_status - Show web search status")
         print("=" * 70 + "\n")
 
     def print_stats(self) -> None:
@@ -179,6 +185,23 @@ class CLIChat:
 
         if user_input.lower() == "/admin_reasoning_status":
             _success, message = self.admin_commands.reasoning_status(self.user_id)
+            # Remove markdown formatting for CLI display
+            message = message.replace("*", "").replace("`", "")
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_web_search_on":
+            _success, message = self.admin_commands.web_search_on(self.user_id)
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_web_search_off":
+            _success, message = self.admin_commands.web_search_off(self.user_id)
+            print(f"\n{message}\n")
+            return None
+
+        if user_input.lower() == "/admin_web_search_status":
+            _success, message = self.admin_commands.web_search_status(self.user_id)
             # Remove markdown formatting for CLI display
             message = message.replace("*", "").replace("`", "")
             print(f"\n{message}\n")
@@ -321,12 +344,14 @@ async def run_cli(settings: AppSettings) -> None:
 
 def main() -> None:
     """Entry point for CLI mode when run directly."""
+    from src.api.bot_database import DEFAULT_DB_PATH as BOT_DB_PATH
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    settings = AppSettings.load()
+    settings = AppSettings.load(db_path=BOT_DB_PATH)
 
     if not settings.mistral_api_key:
         logger.error("MISTRAL_API_KEY is not set")
