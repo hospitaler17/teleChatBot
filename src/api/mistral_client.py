@@ -435,6 +435,43 @@ class MistralClient:
             logger.exception("Mistral streaming API call failed")
             raise
 
+    def get_context_info(self, context_id: int) -> dict:
+        """Return context usage and token statistics for a given context ID.
+
+        Args:
+            context_id: Context ID (user_id for private chats, chat_id for groups)
+
+        Returns:
+            dict with keys ``used`` (messages in context), ``limit`` (max messages),
+            ``cached_tokens`` (estimated tokens for cached messages),
+            ``system_tokens`` (estimated tokens for the system prompt), and
+            ``total_tokens`` (sum of cached and system tokens).
+        """
+        history = self._memory.get_history(context_id)
+        # Only count user/assistant messages (not system context entries)
+        used = sum(1 for m in history if m["role"] in ("user", "assistant"))
+        limit = self._memory.max_history * 2
+
+        # Estimate tokens for cached conversation messages
+        cached_tokens = sum(
+            len(str(m["content"]).split()) * TOKEN_ESTIMATION_MULTIPLIER
+            for m in history
+            if m["role"] in ("user", "assistant")
+        )
+
+        # Estimate tokens for the system prompt
+        system_tokens = (
+            len(self._settings.mistral.system_prompt.split()) * TOKEN_ESTIMATION_MULTIPLIER
+        )
+
+        return {
+            "used": used,
+            "limit": limit,
+            "cached_tokens": int(cached_tokens),
+            "system_tokens": int(system_tokens),
+            "total_tokens": int(cached_tokens + system_tokens),
+        }
+
     def _should_use_web_search(self, prompt: str) -> bool:
         """
         Determine if web search should be used for this prompt.

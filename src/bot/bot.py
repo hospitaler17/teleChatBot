@@ -64,7 +64,7 @@ def create_bot(settings: AppSettings) -> Application:
     access_filter = AccessFilter(settings)
 
     # Handlers
-    cmd = CommandHandler(access_filter, settings.bot.username)
+    cmd = CommandHandler(access_filter, settings.bot.username, mistral_client=mistral_client)
     msg = MessageHandler(settings, mistral_client, access_filter, provider_router=router)
     admin = AdminHandler(settings, access_filter)
 
@@ -76,6 +76,7 @@ def create_bot(settings: AppSettings) -> Application:
     # Basic commands
     app.add_handler(TGCommandHandler("start", cmd.start))
     app.add_handler(TGCommandHandler("help", cmd.help))
+    app.add_handler(TGCommandHandler("info", cmd.info))
 
     # Admin commands
     app.add_handler(TGCommandHandler("admin_add_user", admin.add_user))
