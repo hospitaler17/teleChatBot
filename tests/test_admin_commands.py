@@ -306,3 +306,100 @@ class TestAdminCommandService:
 
         assert success is True
         assert "CoT" in message or "рассуждения" in message
+
+
+class TestCreateBackup:
+    """Tests for AdminCommandService.create_backup."""
+
+    def test_backup_rejected_for_non_admin(self) -> None:
+        """create_backup should reject when caller is not admin."""
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        success, message, zip_path = service.create_backup(admin_id=99)
+
+        assert success is False
+        assert "прав администратора" in message
+        assert zip_path is None
+
+    def test_backup_creates_zip_with_existing_files(self, tmp_path: Path) -> None:
+        """create_backup should return a valid zip archive when files exist."""
+        import zipfile
+
+        # Create a fake DB file and config file in tmp_path
+        db_file = tmp_path / "conversation_history.db"
+        db_file.write_bytes(b"sqlite3-data")
+        config_file = tmp_path / "allowed_users.yaml"
+        config_file.write_text("allowed_user_ids: []\n")
+
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.api.admin_commands.DEFAULT_DB_PATH", db_file)
+            mp.setattr("src.api.admin_commands.CONFIG_DIR", tmp_path)
+            success, message, zip_path = service.create_backup(admin_id=1)
+
+        try:
+            assert success is True
+            assert zip_path is not None
+            assert zip_path.exists()
+            with zipfile.ZipFile(zip_path) as zf:
+                names = zf.namelist()
+            assert any("conversation_history.db" in n for n in names)
+            assert any("allowed_users.yaml" in n for n in names)
+        finally:
+            if zip_path is not None and zip_path.exists():
+                zip_path.unlink(missing_ok=True)
+
+    def test_backup_with_no_existing_files(self, tmp_path: Path) -> None:
+        """create_backup should report no files when nothing exists."""
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        nonexistent_db = tmp_path / "no_db.db"
+        empty_config_dir = tmp_path / "empty_config"
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.api.admin_commands.DEFAULT_DB_PATH", nonexistent_db)
+            mp.setattr("src.api.admin_commands.CONFIG_DIR", empty_config_dir)
+            success, message, zip_path = service.create_backup(admin_id=1)
+
+        assert success is False
+        assert zip_path is None
+
+    def test_backup_includes_extra_paths(self, tmp_path: Path) -> None:
+        """create_backup should include extra_paths in the archive."""
+        import zipfile
+
+        db_file = tmp_path / "conversation_history.db"
+        db_file.write_bytes(b"data")
+        extra_file = tmp_path / "extra.log"
+        extra_file.write_text("log data")
+
+        s = _settings(admin_ids=[1])
+        af = AccessFilter(s)
+        service = AdminCommandService(s, af)
+
+        empty_config = tmp_path / "cfg"
+        empty_config.mkdir()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("src.api.admin_commands.DEFAULT_DB_PATH", db_file)
+            mp.setattr("src.api.admin_commands.CONFIG_DIR", empty_config)
+            success, message, zip_path = service.create_backup(
+                admin_id=1, extra_paths=[extra_file]
+            )
+
+        try:
+            assert success is True
+            assert zip_path is not None
+            with zipfile.ZipFile(zip_path) as zf:
+                names = zf.namelist()
+            assert any("extra.log" in n for n in names)
+        finally:
+            if zip_path is not None and zip_path.exists():
+                zip_path.unlink(missing_ok=True)

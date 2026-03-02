@@ -97,6 +97,7 @@ def create_bot(settings: AppSettings) -> Application:
     app.add_handler(TGCommandHandler("admin_web_search_on", admin.web_search_on))
     app.add_handler(TGCommandHandler("admin_web_search_off", admin.web_search_off))
     app.add_handler(TGCommandHandler("admin_web_search_status", admin.web_search_status))
+    app.add_handler(TGCommandHandler("backup", admin.backup))
 
     # Text messages and other message types (lowest priority)
     # Handles: text, forwarded messages, replies, media with captions

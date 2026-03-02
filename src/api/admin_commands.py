@@ -6,8 +6,17 @@ by both Telegram bot handlers and CLI interface.
 
 from __future__ import annotations
 
+import logging
+import os
+import tempfile
+import zipfile
+from pathlib import Path
+
+from src.api.bot_database import DEFAULT_DB_PATH
 from src.bot.filters.access_filter import AccessFilter
-from src.config.settings import AppSettings
+from src.config.settings import CONFIG_DIR, AppSettings
+
+logger = logging.getLogger(__name__)
 
 
 class AdminCommandService:
@@ -405,6 +414,85 @@ class AdminCommandService:
             f"(новости, погода, текущие события и т.д.)."
         )
         return True, message
+
+
+    def create_backup(
+        self,
+        admin_id: int,
+        extra_paths: list[Path | str] | None = None,
+    ) -> tuple[bool, str, Path | None]:
+        """Create a backup archive of the database and configuration files.
+
+        Collects the SQLite database and all files in the config directory,
+        then writes them into a temporary ZIP archive.  The caller is
+        responsible for deleting the returned file after use.
+
+        Args:
+            admin_id: ID of the admin executing the command.
+            extra_paths: Additional files or directories to include in the
+                backup.  Pass a list of paths to add logs or other artefacts
+                in the future.
+
+        Returns:
+            Tuple of ``(success, message, zip_path)``.  *zip_path* is a
+            :class:`~pathlib.Path` to the created archive on success, or
+            ``None`` on failure.
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора.", None
+
+        # --- collect paths ---------------------------------------------------
+        db_path = Path(DEFAULT_DB_PATH)
+        config_dir = Path(CONFIG_DIR)
+
+        # List of (filesystem_path, archive_path) pairs.
+        entries: list[tuple[Path, str]] = []
+
+        if db_path.exists():
+            entries.append((db_path, f"db/{db_path.name}"))
+
+        if config_dir.exists():
+            for p in sorted(config_dir.iterdir()):
+                if p.is_file():
+                    entries.append((p, f"config/{p.name}"))
+
+        if extra_paths:
+            for raw in extra_paths:
+                p = Path(raw)
+                if p.exists() and p.is_file():
+                    entries.append((p, f"extra/{p.name}"))
+
+        if not entries:
+            return False, "❌ Нет файлов для резервного копирования.", None
+
+        # --- build zip -------------------------------------------------------
+        zip_path: Path | None = None
+        try:
+            fd, zip_path_str = tempfile.mkstemp(suffix=".zip", prefix="backup_")
+            os.close(fd)
+            zip_path = Path(zip_path_str)
+
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for fs_path, arc_name in entries:
+                    try:
+                        zf.write(fs_path, arc_name)
+                    except Exception as file_exc:
+                        logger.warning(
+                            "Skipping file %s in backup: %s", fs_path, file_exc
+                        )
+
+            logger.info("Backup archive created: %s (%d entries)", zip_path, len(entries))
+            return (
+                True,
+                "✅ Резервная копия создана.\n"
+                "❗ Архив содержит конфиденциальные данные. Храните его в безопасном месте.",
+                zip_path,
+            )
+        except Exception as exc:
+            logger.error("Failed to create backup archive: %s", exc)
+            if zip_path is not None and zip_path.exists():
+                zip_path.unlink(missing_ok=True)
+            return False, f"❌ Ошибка при создании архива: {exc}", None
 
 
 def _format_list(items: list) -> str:

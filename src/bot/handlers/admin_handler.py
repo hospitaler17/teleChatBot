@@ -36,6 +36,7 @@ class AdminHandler:
     /admin_web_search_on          – enable web search
     /admin_web_search_off         – disable web search
     /admin_web_search_status      – show web search status
+    /backup                       – create and send a backup archive
     """
 
     def __init__(self, settings: AppSettings, access_filter: AccessFilter) -> None:
@@ -162,6 +163,22 @@ class AdminHandler:
         admin_id = update.effective_user.id if update.effective_user else 0
         _success, message = self._commands.web_search_status(admin_id)
         await update.message.reply_text(message, parse_mode="Markdown")
+
+    async def backup(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/backup — create and send a backup archive (admin only)."""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        success, message, zip_path = self._commands.create_backup(admin_id)
+        if not success or zip_path is None:
+            await update.message.reply_text(message)
+            return
+        try:
+            with open(zip_path, "rb") as f:
+                await update.message.reply_document(document=f, filename="backup.zip")
+        except Exception as exc:
+            logger.error("Failed to send backup document: %s", exc)
+            await update.message.reply_text(f"❌ Ошибка при отправке архива: {exc}")
+        finally:
+            zip_path.unlink(missing_ok=True)
 
     # ------------------------------------------------------------------
     # Helpers
