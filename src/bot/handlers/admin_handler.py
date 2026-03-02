@@ -33,6 +33,9 @@ class AdminHandler:
     /admin_reasoning_on           – enable chain-of-thought reasoning mode
     /admin_reasoning_off          – disable chain-of-thought reasoning mode
     /admin_reasoning_status       – show reasoning mode status and configuration
+    /admin_web_search_on          – enable web search
+    /admin_web_search_off         – disable web search
+    /admin_web_search_status      – show web search status
     """
 
     def __init__(self, settings: AppSettings, access_filter: AccessFilter) -> None:
@@ -140,6 +143,24 @@ class AdminHandler:
         """/admin_reasoning_status"""
         admin_id = update.effective_user.id if update.effective_user else 0
         _success, message = self._commands.reasoning_status(admin_id)
+        await update.message.reply_text(message, parse_mode="Markdown")
+
+    async def web_search_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_web_search_on"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.web_search_on(admin_id)
+        await update.message.reply_text(message)
+
+    async def web_search_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_web_search_off"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.web_search_off(admin_id)
+        await update.message.reply_text(message)
+
+    async def web_search_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/admin_web_search_status"""
+        admin_id = update.effective_user.id if update.effective_user else 0
+        _success, message = self._commands.web_search_status(admin_id)
         await update.message.reply_text(message, parse_mode="Markdown")
 
     # ------------------------------------------------------------------

@@ -73,6 +73,10 @@ nitpick_ignore = [
     # src.config.settings uses :no-index: to prevent duplicate descriptions
     ("py:class", "AppSettings"),
     ("py:exc", "DuplicateKeyError"),
+    # sphinx_autodoc_typehints renders `from pathlib import Path` annotations as
+    # bare "Path" rather than the fully-qualified "pathlib.Path" that intersphinx
+    # can resolve from the Python stdlib inventory.
+    ("py:class", "Path"),
 ]
 nitpick_ignore_regex = [
     # python-telegram-bot – no Sphinx inventory

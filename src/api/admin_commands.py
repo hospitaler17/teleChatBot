@@ -352,6 +352,60 @@ class AdminCommandService:
         )
         return True, message
 
+    def web_search_on(self, admin_id: int) -> tuple[bool, str]:
+        """Enable web search.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        self._settings.mistral.enable_web_search = True
+        self._settings.save_access()
+        return True, "✅ Веб-поиск включён."
+
+    def web_search_off(self, admin_id: int) -> tuple[bool, str]:
+        """Disable web search.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        self._settings.mistral.enable_web_search = False
+        self._settings.save_access()
+        return True, "✅ Веб-поиск выключен."
+
+    def web_search_status(self, admin_id: int) -> tuple[bool, str]:
+        """Get current web search status.
+
+        Args:
+            admin_id: ID of the admin executing the command
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not self.is_admin(admin_id):
+            return False, "⛔ У вас нет прав администратора."
+
+        enabled = self._settings.mistral.enable_web_search
+        status = "включён ✅" if enabled else "выключен ❌"
+        message = (
+            f"*Статус веб-поиска:* {status}\n\n"
+            f"*Как работает:*\n"
+            f"Если включено, бот выполняет поиск в интернете для актуальных запросов "
+            f"(новости, погода, текущие события и т.д.)."
+        )
+        return True, message
+
 
 def _format_list(items: list) -> str:
     """Format a list of items for display.
