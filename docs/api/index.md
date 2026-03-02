@@ -8,6 +8,7 @@ Automatically generated from source docstrings via
 :caption: Modules
 
 admin_commands
+bot_database
 conversation_memory
 mistral_client
 model_selector

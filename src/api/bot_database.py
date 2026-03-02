@@ -2,7 +2,7 @@
 
 The same SQLite file that holds conversation history is reused (additional
 tables are simply added to it).  On first use the tables are empty; call
-:meth:`initialize_from_config` to seed them from the YAML configuration.
+``BotDatabase.initialize_from_config`` to seed them from the YAML configuration.
 """
 
 from __future__ import annotations
@@ -32,10 +32,10 @@ class BotDatabase:
     ``groups``
         Allowed group/supergroup chat IDs.
 
-    On first use (all tables empty) call :meth:`initialize_from_config` to
+    On first use (all tables empty) call ``initialize_from_config`` to
     import data from the YAML configuration.  Afterwards the DB is the
     authoritative source and is loaded at startup via
-    :meth:`AppSettings.load`.
+    ``AppSettings.load``.
     """
 
     def __init__(self, db_path: str | Path | None = None) -> None:
@@ -250,7 +250,7 @@ class BotDatabase:
     ) -> None:
         """Replace all rows with the current in-memory state.
 
-        Called by :meth:`AppSettings.save_access` so that every admin-command
+        Called by ``AppSettings.save_access`` so that every admin-command
         change is persisted to the DB in addition to the YAML file.
 
         Args:
