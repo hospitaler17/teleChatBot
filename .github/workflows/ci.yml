@@ -17,16 +17,25 @@ jobs:
       runner: ${{ steps.pick.outputs.runner }}
     steps:
       - id: pick
+        # use a secret named GH_TOKEN directly so that `act` can populate it
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          ONLINE=$(gh api "repos/${{ github.repository }}/actions/runners" \
-            --jq '[.runners[] | select(.status=="online") | select([.labels[].name] | contains(["self-hosted","Linux","X64"]))] | length' \
-            2>/dev/null) || ONLINE=0
+          
+          ALL_RUNNERS=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/hospitaler17/teleChatBot/actions/runners" \
+            | jq -r '[.runners[] | select(.status=="online") | {name, labels: ([.labels[].name] | join(","))}] | ("| Name | Labels |"), ("|------|--------|"), (.[] | "| "+.name+" | "+.labels+" |")' || echo '')
+          echo -e "Online runners:\n${ALL_RUNNERS}"
+
+          ONLINE=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/hospitaler17/teleChatBot/actions/runners" \
+            | jq '[.runners[] | select(.status=="online") | select([.labels[].name] | contains(["self-hosted","Linux","X64"]))] | length' || echo 0)
+          echo "Matching online self-hosted Linux X64 runners: ${ONLINE}"
+
           if [ "${ONLINE:-0}" -gt 0 ]; then
             echo 'runner=["self-hosted","Linux","X64"]' >> "$GITHUB_OUTPUT"
+            echo 'Selected runner: self-hosted","Linux","X64"]'
           else
             echo 'runner="ubuntu-latest"' >> "$GITHUB_OUTPUT"
+            echo 'Selected runner: "ubuntu-latest"'
           fi
 
   build:
