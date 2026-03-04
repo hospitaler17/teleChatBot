@@ -13,20 +13,21 @@ permissions:
 jobs:
   select-runner:
     runs-on: ubuntu-latest
+    environment: actions
     outputs:
       runner: ${{ steps.pick.outputs.runner }}
     steps:
       - id: pick
-        # use a secret named GH_TOKEN directly so that `act` can populate it
+        # GH_TOKEN и REPO_RUNNERS_URL можно задавать через secrets или environment
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          REPO_RUNNERS_URL: ${{ vars.REPO_RUNNERS_URL || env.REPO_RUNNERS_URL || 'https://api.github.com/repos/hospitaler17/teleChatBot/actions/runners' }}
         run: |
-          
-          ALL_RUNNERS=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/hospitaler17/teleChatBot/actions/runners" \
+          ALL_RUNNERS=$(curl -s -H "Authorization: token $GH_TOKEN" "$REPO_RUNNERS_URL" \
             | jq -r '[.runners[] | select(.status=="online") | {name, labels: ([.labels[].name] | join(","))}] | ("| Name | Labels |"), ("|------|--------|"), (.[] | "| "+.name+" | "+.labels+" |")' || echo '')
           echo -e "Online runners:\n${ALL_RUNNERS}"
 
-          ONLINE=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/hospitaler17/teleChatBot/actions/runners" \
+          ONLINE=$(curl -s -H "Authorization: token $GH_TOKEN" "$REPO_RUNNERS_URL" \
             | jq '[.runners[] | select(.status=="online") | select([.labels[].name] | contains(["self-hosted","Linux","X64"]))] | length' || echo 0)
           echo "Matching online self-hosted Linux X64 runners: ${ONLINE}"
 
@@ -41,6 +42,7 @@ jobs:
   build:
     runs-on: ${{ fromJSON(needs.select-runner.outputs.runner) }}
     needs: select-runner
+    environment: actions
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -51,6 +53,7 @@ jobs:
   test:
     runs-on: ${{ fromJSON(needs.select-runner.outputs.runner) }}
     needs: [build, select-runner]
+    environment: actions
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
