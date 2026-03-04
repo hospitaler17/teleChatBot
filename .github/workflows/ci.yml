@@ -127,10 +127,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install PlantUML
+      - name: Download PlantUML jar
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y plantuml
+          # fetch the latest PlantUML standalone jar so we don't need sudo
+          curl -sSL -o plantuml.jar \
+            https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
       - name: Install runtime dependencies
         run: pip install -r requirements.txt
       - name: Install docs dependencies
@@ -138,6 +139,7 @@ jobs:
       - name: Build HTML docs
         env:
           PYTHONPATH: ${{ github.workspace }}
+          PLANTUML_JAR: ${{ github.workspace }}/plantuml.jar
         run: |
           sphinx-build \
             -b html \
